@@ -13,13 +13,27 @@ def skill_id(c, name):
 def init():
     with conn() as c:
         c.executescript((pathlib.Path(__file__).parent / "schema.sql").read_text())
-        if c.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0:
-            for j in json.loads((ROOT / "data" / "jobs.json").read_text()):
-                cur = c.execute("INSERT INTO jobs(title,company,location,description,min_years) VALUES (?,?,?,?,?)",
-                                (j["title"], j["company"], j["location"], j["description"], j.get("min_years", 0)))
-                found, _ = engine.find_skills(j["title"] + " " + j["description"])
-                for s in found:
-                    c.execute("INSERT OR IGNORE INTO job_skills VALUES (?,?)", (cur.lastrowid, skill_id(c, s)))
+        for job in json.loads((ROOT / "data" / "jobs.json").read_text()):
+            existing = c.execute(
+                "SELECT id FROM jobs WHERE title=? AND company=?",
+                (job["title"], job["company"]),
+            ).fetchone()
+            if existing:
+                job_id = existing["id"]
+            else:
+                cursor = c.execute(
+                    "INSERT INTO jobs(title,company,location,description,min_years) VALUES (?,?,?,?,?)",
+                    (job["title"], job["company"], job["location"], job["description"], job.get("min_years", 0)),
+                )
+                job_id = cursor.lastrowid
+            stored_job = c.execute(
+                "SELECT title, description FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
+            found, _ = engine.find_skills(stored_job["title"] + " " + stored_job["description"])
+            c.execute("DELETE FROM job_skills WHERE job_id=?", (job_id,))
+            for name in found:
+                c.execute("INSERT OR IGNORE INTO job_skills VALUES (?,?)", (job_id, skill_id(c, name)))
 
 def jobs():
     with conn() as c:
@@ -38,6 +52,20 @@ def save_resume(filename, text, ats_score, years, skills, matches):
             c.execute("INSERT INTO matches(resume_id,job_id,score,missing_skills) VALUES (?,?,?,?)",
                       (rid, m["job_id"], m["score"], ",".join(m["missing"])))
         return rid
+
+
+def resume_history(filename):
+    with conn() as c:
+        rows = c.execute(
+            "SELECT id, filename, ats_score, uploaded_at FROM resumes WHERE filename=? ORDER BY id",
+            (filename,),
+        ).fetchall()
+        return [
+            {"id": row["id"], "version": version, "filename": row["filename"],
+             "ats_score": row["ats_score"], "uploaded_at": row["uploaded_at"]}
+            for version, row in enumerate(rows, 1)
+        ]
+
 
 def insights():
     with conn() as c:
