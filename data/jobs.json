@@ -1,0 +1,10 @@
+[
+{"title":"Machine Learning Engineer","company":"Nimbus AI","location":"Bengaluru","min_years":2,"description":"Build and deploy Machine Learning models in Python using PyTorch and scikit-learn. Work on NLP pipelines, Pandas data prep, Docker deployment on AWS, and REST API serving with FastAPI. Git and SQL required."},
+{"title":"Full Stack Developer","company":"Kritrim Labs","location":"Mumbai","min_years":1,"description":"Develop web apps using JavaScript, React, Node.js and Express with MongoDB or SQL databases. Strong HTML and CSS, REST API design, Git workflow and Agile teamwork."},
+{"title":"Data Analyst","company":"Rupee Metrics","location":"Delhi","min_years":0,"description":"Analyze business data with SQL, Python, Pandas and Statistics. Build Data Visualization dashboards in Tableau or Power BI. Strong Communication needed."},
+{"title":"Backend Engineer","company":"Stackyard","location":"Pune","min_years":2,"description":"Design Microservices in Python or Java with Django or Flask. Work with PostgreSQL, Redis, Kafka, Docker and Kubernetes on AWS. Strong System Design, Data Structures and CI/CD."},
+{"title":"NLP Research Intern","company":"Bharat Language Lab","location":"Hyderabad","min_years":0,"description":"Research NLP and Deep Learning for Indian languages using Python, PyTorch, TensorFlow and Pandas. Knowledge of Algorithms, Statistics and Git is a plus."},
+{"title":"Frontend Developer","company":"Pixelwave","location":"Remote","min_years":1,"description":"Craft responsive interfaces with React, TypeScript, HTML, CSS and Tailwind. Figma handoff, UI/UX sense, Testing and Git."},
+{"title":"DevOps Engineer","company":"Cloudkart","location":"Chennai","min_years":3,"description":"Automate infrastructure with Docker, Kubernetes, AWS and Linux. Build CI/CD pipelines with Jenkins and GitHub Actions. Python scripting and Git."},
+{"title":"Data Scientist","company":"Quantaris","location":"Gurugram","min_years":2,"description":"Apply Machine Learning, Statistics and Data Analysis using Python, scikit-learn, Pandas, NumPy and SQL. Present insights with Data Visualization. Spark experience is a plus."}
+]

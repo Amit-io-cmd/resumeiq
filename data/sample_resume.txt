@@ -1,0 +1,22 @@
+Aarav Sharma
+aarav.sharma@email.com | +91 98765 43210 | github.com/aarav
+
+EDUCATION
+B.Tech Computer Science, IIT Bombay, 2022 - 2026, CGPA 8.9
+
+SKILLS
+Python, JavaScript, SQL, HTML, CSS, React, Flask, Pandas, scikit-learn, Git, Docker, Data Structures, Algorithms
+
+EXPERIENCE
+Machine Learning Intern, Nimbus AI, 2025 - 2025
+- Built an NLP classifier in Python that improved ticket routing accuracy by 18%
+- Deployed a Flask REST API serving 5000+ requests per day
+- Automated data cleaning with Pandas, reducing preparation time by 40%
+
+PROJECTS
+Campus Placement Predictor
+- Developed a scikit-learn model on 3000 student records reaching 87% accuracy
+- Designed a React dashboard with Chart.js and a SQL backend
+Hostel Mess Review App
+- Created a full stack app with Node.js and MongoDB used by 400+ students
+- Implemented Git based workflow with 3 teammates

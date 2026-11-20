@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pdfplumber
+python-docx
+scikit-learn
+numpy
+sentence-transformers   # optional: better semantic matching; falls back to TF-IDF if absent
+anthropic               # optional: AI bullet rewrites (set ANTHROPIC_API_KEY)

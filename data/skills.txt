@@ -1,0 +1,117 @@
+# Languages
+Python|py|python3
+JavaScript|js|ecmascript|es6|es2020
+TypeScript|ts
+Java|core java|j2ee
+C++|cpp|cplusplus
+C#|csharp|.net|dotnet
+Go|golang
+Rust|rustlang
+Ruby|ruby on rails|rails
+PHP|php8|laravel
+Swift|swiftui
+Kotlin|android kotlin
+R|r-lang
+Scala
+Dart
+SQL|mysql|postgresql|postgres|sqlite|plsql|tsql
+Shell|bash|zsh|powershell|scripting
+
+# Frontend
+React|reactjs|react.js
+Next.js|nextjs|next
+Vue|vuejs|vue.js|vue3
+Angular|angularjs|angular2+
+Svelte|sveltekit
+HTML|html5
+CSS|css3
+Tailwind|tailwindcss|tailwind css
+Sass|scss
+Redux|redux toolkit|zustand
+GraphQL|apollo
+Webpack|vite
+Responsive Design|mobile-first
+
+# Backend & Cloud
+Node.js|nodejs|node
+Express|expressjs
+FastAPI
+Django|django rest framework|drf
+Flask
+Spring Boot|spring framework
+NestJS
+ASP.NET|asp.net core
+REST API|restful|rest apis|web apis
+Microservices|distributed systems
+gRPC|protobuf
+Serverless|aws lambda|cloud functions
+AWS|amazon web services|ec2|s3|rds
+Azure|microsoft azure
+GCP|google cloud platform|google cloud
+Docker|containerization
+Kubernetes|k8s|helm
+Terraform|infrastructure as code|iac
+Ansible
+CI/CD|continuous integration|github actions|jenkins|gitlab ci
+Linux|unix|ubuntu
+Nginx|apache
+
+# Databases & Storage
+PostgreSQL|postgres
+MySQL
+MongoDB|mongo|nosql
+Redis|in-memory cache
+SQLite
+Cassandra
+Elasticsearch|opensearch
+DynamoDB
+Firebase|firestore
+Supabase
+Snowflake
+BigQuery
+Databricks
+
+# Data, AI & Machine Learning
+Machine Learning|ml|supervised learning|unsupervised learning
+Deep Learning|neural networks|dl
+NLP|natural language processing|text processing
+LLMs|large language models|gpt|claude|gemini
+LangChain|llamaindex|rag|retrieval augmented generation
+Computer Vision|opencv|image processing
+PyTorch|torch
+TensorFlow|keras
+scikit-learn|sklearn
+Pandas
+NumPy
+SciPy
+Data Analysis|exploratory data analysis|eda
+Data Visualization|tableau|power bi|matplotlib|seaborn
+Statistics|statistical modeling|hypothesis testing
+Data Pipelines|etl|elt
+Spark|pyspark|apache spark
+Kafka|apache kafka
+Hadoop
+
+# Software Practices & Testing
+Data Structures|dsa|trees|graphs
+Algorithms|sorting|searching|dynamic programming
+System Design|scalability|high availability
+OOP|object oriented programming|object-oriented
+Design Patterns
+Unit Testing|pytest|jest|junit|testing
+TDD|test driven development
+Git|github|gitlab|version control
+Agile|scrum|kanban|sprint planning
+Cybersecurity|infosec|owasp|authentication|jwt|oauth
+
+# UI/UX & Product
+UI/UX|ux design|user experience
+Figma|wireframing|prototyping
+Product Management|roadmap|user stories
+
+# Soft Skills & Collaboration
+Communication|stakeholder management
+Leadership|team lead|technical leadership
+Problem Solving|analytical thinking
+Mentorship|code reviews|mentoring
+Cross-functional|cross functional collaboration

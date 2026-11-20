@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ResumeIQ: see why your resume matches</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body>
+<header class="top"><b class="logo">ResumeIQ</b>
+<nav><button class="tab on" data-tab="cand">For candidates</button><button class="tab" data-tab="rec">For recruiters</button></nav></header>
+
+<main id="cand" class="pane">
+ <section class="intro"><h1>See exactly why a job wants you, or doesn't.</h1>
+ <p>Upload your resume. We highlight the evidence in your own words, score the match, and list what to learn next.</p></section>
+ <section class="input">
+  <label class="drop" id="drop"><input type="file" id="file" accept=".pdf,.docx,.txt" hidden>
+   <strong id="fname">Drop your resume here</strong><span>PDF, DOCX or TXT</span></label>
+  <div class="jd"><label for="jd">Target job description (optional)</label><textarea id="jd" placeholder="Paste a job description to score against it too"></textarea></div>
+ </section>
+ <div class="actions"><button class="btn" id="go">Analyze resume</button><button class="btn ghost" id="sample">Try a sample resume</button><span id="msg" role="status"></span></div>
+
+ <div id="out" hidden>
+  <section class="grid">
+   <div class="col">
+    <div class="card center"><svg class="ring" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="track"/><circle id="arc" cx="60" cy="60" r="52" class="arc"/></svg>
+     <div class="big" id="score">0</div><div id="jobname" class="muted"></div><div id="method" class="muted small"></div></div>
+    <div class="card"><h3>Score breakdown</h3><div id="bars"></div></div>
+    <div class="card"><h3>Resume strength (ATS)</h3><div class="big sm" id="ats"></div><ul id="tips"></ul><button class="btn ghost" id="rew">Rewrite weak bullets with AI</button><pre id="rewout" hidden></pre></div>
+   </div>
+   <div class="col wide">
+    <div class="card"><h3>Evidence in your resume</h3><p class="legend"><i class="hit">matched</i> skills this job wants <i class="oth">other</i> skills you have</p><div id="doc" class="doc"></div></div>
+    <div class="card"><h3>Skill gaps and what to learn first</h3><div id="gaps"></div></div>
+   </div>
+  </section>
+  <section class="card"><h3>Best-matching jobs</h3><div id="jobs"></div></section>
+  <section class="card"><h3>Market insight (from SQL)</h3><div id="ins"></div></section>
+ </div>
+</main>
+
+<main id="rec" class="pane" hidden>
+ <section class="intro"><h1>Rank a stack of resumes against one job.</h1><p>Turn on blind screening to hide names, emails and phone numbers before scoring.</p></section>
+ <section class="input">
+  <label class="drop"><input type="file" id="rfiles" accept=".pdf,.docx,.txt" multiple hidden><strong id="rname">Choose several resumes</strong><span>PDF, DOCX or TXT</span></label>
+  <div class="jd"><label for="rjd">Job description</label><textarea id="rjd" placeholder="Paste the job description"></textarea></div>
+ </section>
+ <div class="actions"><label class="chk"><input type="checkbox" id="anon"> Blind screening</label><button class="btn" id="rgo">Rank candidates</button><span id="rmsg" role="status"></span></div>
+ <div id="rout" class="card" hidden></div>
+</main>
+<script src="app.js"></script></body></html>
