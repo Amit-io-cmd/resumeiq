@@ -14,7 +14,7 @@ Kotlin|android kotlin
 R|r-lang
 Scala
 Dart
-SQL|mysql|postgresql|postgres|sqlite|plsql|tsql
+SQL|plsql|tsql
 Shell|bash|zsh|powershell|scripting
 
 # Frontend
