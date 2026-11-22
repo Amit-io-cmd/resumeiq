@@ -5,7 +5,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "app.db"
 
 def conn():
-    c = sqlite3.connect(DB); c.row_factory = sqlite3.Row; return c
+    c = sqlite3.connect(DB, timeout=30.0)
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA busy_timeout = 30000")
+    return c
 
 def skill_id(c, name):
     c.execute("INSERT OR IGNORE INTO skills(name) VALUES (?)", (name,))
@@ -13,6 +16,7 @@ def skill_id(c, name):
 
 def init():
     with conn() as c:
+        c.execute("PRAGMA journal_mode = WAL")
         c.executescript((pathlib.Path(__file__).parent / "schema.sql").read_text())
         cols = [col[1] for col in c.execute("PRAGMA table_info(resumes)").fetchall()]
         if "user_id" not in cols:

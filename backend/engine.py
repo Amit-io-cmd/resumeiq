@@ -436,11 +436,17 @@ def semantic(a: str, b: str):
     global _model
     if _model is None:
         try:
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
             from sentence_transformers import SentenceTransformer
-            _model = SentenceTransformer("all-MiniLM-L6-v2")
-        except Exception as exc:
-            logger.warning("MiniLM unavailable; using TF-IDF fallback: %s", exc)
-            _model = False
+            _model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+        except Exception:
+            try:
+                from sentence_transformers import SentenceTransformer
+                _model = SentenceTransformer("all-MiniLM-L6-v2")
+            except Exception as exc:
+                logger.warning("MiniLM unavailable; using TF-IDF fallback: %s", exc)
+                _model = False
     if _model:
         resume_chunks, job_chunks = _embedding_chunks(a), _embedding_chunks(b)
         embeddings = _model.encode(resume_chunks + job_chunks, normalize_embeddings=True, batch_size=32)
