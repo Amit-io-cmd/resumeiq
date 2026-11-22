@@ -21,18 +21,81 @@
         <span class="brand-sub">Diagnostic Workbench</span>
       </div>
     </div>
-    <nav class="nav-tabs" role="tablist">
-      <button class="nav-tab on" data-tab="cand" role="tab" aria-selected="true">Candidate Diagnostic</button>
-      <button class="nav-tab" data-tab="rec" role="tab" aria-selected="false">Recruiter Screening</button>
-    </nav>
+
+    <div class="nav-actions">
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab on" data-tab="cand" role="tab" aria-selected="true">Candidate Diagnostic</button>
+        <button class="nav-tab" data-tab="rec" role="tab" aria-selected="false">Recruiter Screening</button>
+      </nav>
+
+      <!-- Google OAuth / User Chip Container -->
+      <div class="auth-wrapper" id="auth-wrapper">
+        <button class="btn btn-google" id="btn-google-login" type="button">
+          <svg class="google-icon" width="18" height="18" viewBox="0 0 18 18">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span id="google-btn-text">Continue with Google</span>
+        </button>
+
+        <!-- Authenticated Profile Chip -->
+        <button class="user-profile-chip" id="user-chip" type="button" hidden>
+          <img class="user-avatar" id="user-avatar" src="" alt="User avatar">
+          <span class="user-name" id="user-name">User</span>
+          <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
+
+  <!-- User Profile Slide-Over Drawer -->
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="user-drawer glass-card" id="user-drawer" hidden>
+    <div class="drawer-header">
+      <div class="drawer-user-info">
+        <img class="drawer-avatar" id="drawer-avatar" src="" alt="User avatar">
+        <div>
+          <h3 id="drawer-user-name">Engineer</h3>
+          <span class="drawer-email" id="drawer-user-email">user@email.com</span>
+        </div>
+      </div>
+      <button class="drawer-close-btn" id="drawer-close" type="button" aria-label="Close drawer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="drawer-section-title">Saved Resume Analyses</div>
+      <div class="drawer-history-list" id="drawer-history-list">
+        <p class="drawer-empty-hint">No resumes analyzed under this account yet.</p>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="btn btn-ghost btn-sm btn-logout" id="btn-logout" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Sign Out
+      </button>
+    </div>
+  </aside>
 
   <!-- Candidate Workbench Pane -->
   <main id="cand" class="workbench-pane">
     <header class="section-header">
       <div class="tag-pill">Developer & Engineering Career Tooling · 100% Free & Open</div>
       <h1>Evidence-Based Resume & Role Diagnostic</h1>
-      <p>Analyze ATS structure, identify the earliest hiring bottleneck, discover matched open roles, and generate skill tutorials with zero paywalls.</p>
+      <p>Analyze ATS structure, extract validated technical skills, discover matched open roles, and generate missing-skill study tutorials with zero paywalls.</p>
     </header>
 
     <!-- Upload & Target Role Grid -->
@@ -101,14 +164,65 @@
       <span id="msg" class="status-indicator" role="status"></span>
     </div>
 
-    <!-- Output Dashboard (Hidden until analyzed) -->
+    <!-- Validation Error Card (Triggered on invalid/abrupt text) -->
+    <div id="validation-error-card" class="glass-card validation-error-banner" hidden>
+      <div class="error-banner-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <div class="error-banner-body">
+        <strong class="error-banner-title">Invalid Resume Input</strong>
+        <p id="validation-error-text" class="error-banner-msg">The document does not appear to contain a structured resume.</p>
+      </div>
+      <button class="btn btn-sm btn-ghost error-banner-btn" id="btn-load-sample-from-error" type="button">Load Sample Resume</button>
+    </div>
+
+    <!-- Animated Loading Skeleton (shown while analyzing) -->
+    <div id="analysis-skeleton" class="skeleton-wrapper" hidden>
+      <div class="skeleton-grid-2col">
+        <div class="glass-card skeleton-card">
+          <div class="skeleton-line shimmer" style="width: 40%; height: 20px; margin-bottom: 24px;"></div>
+          <div class="skeleton-circle shimmer" style="width: 140px; height: 140px; margin: 0 auto 20px;"></div>
+          <div class="skeleton-line shimmer" style="width: 60%; height: 16px; margin: 0 auto 16px;"></div>
+          <div class="skeleton-line shimmer" style="width: 100%; height: 12px; margin-bottom: 8px;"></div>
+          <div class="skeleton-line shimmer" style="width: 100%; height: 12px; margin-bottom: 8px;"></div>
+          <div class="skeleton-line shimmer" style="width: 80%; height: 12px;"></div>
+        </div>
+        <div class="glass-card skeleton-card">
+          <div class="skeleton-line shimmer" style="width: 50%; height: 20px; margin-bottom: 16px;"></div>
+          <div class="skeleton-box shimmer" style="height: 180px; margin-bottom: 16px;"></div>
+          <div class="skeleton-line shimmer" style="width: 45%; height: 18px; margin-bottom: 12px;"></div>
+          <div class="skeleton-box shimmer" style="height: 80px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Dashboard (Hidden until successfully analyzed) -->
     <div id="out" hidden>
+      <!-- Explicit Resume Quality Warnings (for weak or partial content) -->
+      <div id="resume-warnings-card" class="glass-card resume-warnings-banner" hidden>
+        <div class="warnings-banner-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <div class="warnings-banner-body">
+          <strong class="warnings-banner-title">Resume Content Notice</strong>
+          <ul id="resume-warnings-list" class="warnings-list"></ul>
+        </div>
+      </div>
+
       <!-- Match Score & Diagnostics Grid -->
       <section class="diagnostic-grid-2col">
         <!-- Left Column: Match Metrics & ATS -->
         <div class="column-stack">
           <!-- Match Score Overview Card -->
-          <div class="glass-card score-overview-card">
+          <div class="glass-card score-overview-card card-entrance">
             <div class="card-title-row">
               <h3>Role Match Fit</h3>
               <span id="method" class="engine-badge">TF-IDF / Neural</span>
@@ -128,7 +242,7 @@
           </div>
 
           <!-- ATS Screening Card -->
-          <div class="glass-card ats-card">
+          <div class="glass-card ats-card card-entrance">
             <div class="card-title-row">
               <h3>ATS Parser Strength</h3>
               <span class="score-tag" id="ats">0/100</span>
@@ -145,7 +259,7 @@
         <!-- Right Column: Evidence & Skill Gaps -->
         <div class="column-stack">
           <!-- Evidence in Resume Card -->
-          <div class="glass-card evidence-card">
+          <div class="glass-card evidence-card card-entrance">
             <div class="card-title-row">
               <h3>Extracted Resume Evidence</h3>
               <div class="legend-row">
@@ -156,8 +270,8 @@
             <div id="doc" class="doc-viewer"></div>
           </div>
 
-          <!-- Feature 2: Missing Skills -> YouTube Study Hub -->
-          <div class="glass-card study-hub-card">
+          <!-- Missing Skills -> YouTube Study Hub -->
+          <div class="glass-card study-hub-card card-entrance">
             <div class="card-title-row">
               <h3>Skill Gaps & YouTube Study Hub</h3>
               <span class="badge-neutral">Zero Quota Exhaustion / Free Fallback</span>
@@ -168,8 +282,8 @@
         </div>
       </section>
 
-      <!-- Feature 4: Auto-Predicted Roles Section -->
-      <section class="glass-card predictive-roles-section">
+      <!-- Auto-Predicted Roles Section -->
+      <section class="glass-card predictive-roles-section card-entrance">
         <div class="section-heading-row">
           <div>
             <h2 class="section-title">Predicted Best-Fitting Roles</h2>
@@ -183,8 +297,8 @@
         <div id="predicted-roles-grid" class="roles-grid"></div>
       </section>
 
-      <!-- Feature 3: Matching Open Roles (Live Remote/On-site from Free APIs) -->
-      <section class="glass-card open-roles-section">
+      <!-- Matching Open Roles (Live Remote/On-site from Free APIs) -->
+      <section class="glass-card open-roles-section card-entrance">
         <div class="section-heading-row">
           <div>
             <h2 class="section-title">Matching Open Roles</h2>
@@ -199,7 +313,7 @@
       </section>
 
       <!-- Market Insights SQL View -->
-      <section class="glass-card insights-section">
+      <section class="glass-card insights-section card-entrance">
         <div class="card-title-row">
           <h3>Market Skill Demand (Local SQLite Analytics)</h3>
           <span class="badge-neutral" id="insight-count">0 Resumes Analyzed</span>

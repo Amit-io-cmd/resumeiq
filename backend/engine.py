@@ -103,6 +103,95 @@ def extract_text(name: str, data: bytes) -> str:
         except UnicodeDecodeError:
             return data.decode("latin-1")
 
+
+def validate_resume_text(text: str) -> Tuple[bool, str, List[str], Dict[str, Any]]:
+    """
+    Validates that the provided text resembles a structured technical resume.
+    Returns (is_valid, error_message, warnings, details).
+    """
+    stripped = text.strip()
+    words = stripped.split()
+    word_count = len(words)
+    char_count = len(stripped)
+
+    # 1. Minimum length guard
+    if char_count < 140 or word_count < 28:
+        return False, (
+            f"The provided text is too brief to analyze as a resume ({word_count} words found). "
+            "A standard technical resume should contain at least 35-50 words including experience, "
+            "skills, projects, or education. Click 'Use Sample Resume' for an example."
+        ), ["Document is too short to extract career signals."], {"words": word_count, "reason": "too_short"}
+
+    # 2. Gibberish / keyboard smash / non-readable content detection
+    tokens = re.findall(r"\b[a-zA-Z]{2,}\b", stripped.lower())
+    if not tokens or len(tokens) < 14:
+        return False, (
+            "The document does not contain enough recognizable words to be parsed as a resume. "
+            "Please upload a text-based PDF, DOCX, or TXT file."
+        ), ["Document lacks readable text."], {"reason": "low_word_count"}
+
+    vowels = set("aeiouy")
+    vowelless = sum(1 for w in tokens if not any(ch in vowels for ch in w))
+    if len(tokens) >= 10 and (vowelless / len(tokens)) > 0.35:
+        return False, (
+            "The document contains random or unstructured character sequences without recognizable words. "
+            "Please verify your file content or try the sample resume."
+        ), ["Random character sequence or keyboard smash detected."], {"reason": "gibberish"}
+
+    avg_len = sum(len(w) for w in tokens) / len(tokens)
+    if avg_len > 18:
+        return False, (
+            "The document contains unusually long continuous character sequences. "
+            "Ensure the resume has normal word spacing."
+        ), ["Tokens exceed normal word length."], {"reason": "unusually_long_tokens"}
+
+    # 3. Structural resume signals
+    skills, _ = find_skills(stripped)
+    has_skills = len(skills) > 0
+    has_section = bool(re.search(
+        r"\b(education|academics?|experience|work\s+history|employment|projects?|technical\s+skills|skills?|summary|profile|objective|certifications?|coursework)\b",
+        stripped, re.I
+    ))
+    has_contact = bool(
+        re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", stripped) or
+        re.search(r"\+?\d[\d\s-]{8,}", stripped) or
+        re.search(r"github\.com|linkedin\.com|portfolio|\.dev|\.io", stripped, re.I)
+    )
+    has_dates = bool(re.search(r"\b(?:19|20)\d{2}\b|\bpresent\b|\bcurrent\b", stripped, re.I))
+
+    structural_signals = sum([has_skills, has_section, has_contact, has_dates])
+    # A valid resume must have:
+    # EITHER at least 2 distinct technical skills and at least 1 other signal (section, contact, or dates),
+    # OR at least a recognizable section header (e.g. Experience/Education) and at least 1 other signal.
+    is_resume_structure = (has_section and structural_signals >= 2) or (len(skills) >= 2 and structural_signals >= 2) or (has_section and len(skills) >= 1)
+    if not is_resume_structure:
+        return False, (
+            "The uploaded content does not appear to be a technical resume. "
+            "It is missing recognizable resume sections (such as Experience or Education), "
+            "technical skills, or contact info. You can click 'Use Sample Resume' for a complete example."
+        ), ["Missing standard resume sections and recognized technical skills."], {"structural_signals": structural_signals, "reason": "missing_resume_signals"}
+
+    # 4. Compile helpful warnings for partial / weak resumes
+    warnings = []
+    if word_count < 80:
+        warnings.append(f"Brief resume ({word_count} words). Adding quantified project bullets will improve ATS matching.")
+    if len(skills) < 3:
+        warnings.append(f"Low skill count ({len(skills)} recognized). Explicitly list your technical stack in a Skills section.")
+    if not has_section:
+        warnings.append("Missing standard section headers (e.g., 'Experience', 'Education', 'Projects').")
+    if not has_contact:
+        warnings.append("Missing professional contact links (email, GitHub, or LinkedIn).")
+
+    return True, "", warnings, {
+        "words": word_count,
+        "skills_found": len(skills),
+        "has_section": has_section,
+        "has_contact": has_contact,
+        "has_dates": has_dates
+    }
+
+
+
 def find_skills(text: str):
     """Returns (set of canonical skills, non-overlapping spans for highlighting)."""
     spans, found = [], set()

@@ -9,6 +9,61 @@ let analysisData = null;
 let selectedJobIdx = 0;
 let currentTopN = 5;
 let currentMode = 'target'; // 'target' or 'predict'
+let authConfig = { google_client_id: '', dev_mode: true };
+let currentUser = null;
+
+// Default inline SVG avatar generator for users without avatar URLs
+function getDefaultAvatar(name) {
+  const initial = (name || 'E').charAt(0).toUpperCase();
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="36" height="36" rx="18" fill="%232563eb"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600">${initial}</text></svg>`;
+}
+
+// Stale State Prevention: Reset all previous analysis results immediately
+function resetPreviousResults() {
+  analysisData = null;
+  currentResumeText = '';
+  selectedJobIdx = 0;
+
+  // Hide analysis output, warnings, and validation error
+  if ($('#out')) $('#out').hidden = true;
+  if ($('#resume-warnings-card')) $('#resume-warnings-card').hidden = true;
+  if ($('#validation-error-card')) $('#validation-error-card').hidden = true;
+
+  // Reset score and radial progress
+  if ($('#score')) $('#score').textContent = '--';
+  if ($('#jobname')) $('#jobname').textContent = 'Awaiting analysis...';
+  if ($('#method')) $('#method').textContent = 'Hybrid Match';
+  const arc = $('#arc');
+  if (arc) arc.style.strokeDashoffset = 326.7;
+
+  // Clear score breakdown bars
+  if ($('#bars')) $('#bars').innerHTML = '';
+
+  // Clear ATS score and tips
+  if ($('#ats')) $('#ats').textContent = '--/100';
+  if ($('#tips')) $('#tips').innerHTML = '';
+
+  // Clear evidence document
+  if ($('#doc')) $('#doc').innerHTML = '';
+
+  // Clear study hub
+  if ($('#study-links-container')) $('#study-links-container').innerHTML = '';
+
+  // Clear auto-predicted roles
+  if ($('#predicted-roles-grid')) $('#predicted-roles-grid').innerHTML = '';
+
+  // Clear open matching roles
+  if ($('#open-roles-grid')) $('#open-roles-grid').innerHTML = '';
+
+  // Clear warnings list
+  if ($('#resume-warnings-list')) $('#resume-warnings-list').innerHTML = '';
+
+  // Clear bullet rewrite output
+  if ($('#rewout')) {
+    $('#rewout').hidden = true;
+    $('#rewout').textContent = '';
+  }
+}
 
 // Navigation Tabs
 $$('.nav-tab').forEach(btn => {
@@ -30,6 +85,7 @@ $('#mode-target').onclick = () => {
   $('#mode-predict').classList.remove('on');
   $('#target-role-container').hidden = false;
   $('#predict-role-container').hidden = true;
+  resetPreviousResults();
 };
 
 $('#mode-predict').onclick = () => {
@@ -38,7 +94,16 @@ $('#mode-predict').onclick = () => {
   $('#mode-target').classList.remove('on');
   $('#target-role-container').hidden = true;
   $('#predict-role-container').hidden = false;
+  resetPreviousResults();
 };
+
+// Clear previous state when target role text is edited
+$('#jd').addEventListener('input', () => {
+  if (analysisData) {
+    resetPreviousResults();
+    say('#msg', 'Target role modified. Click "Run Diagnostic" to re-evaluate.');
+  }
+});
 
 // Predict Selector (Top 5 vs Top 10)
 $$('.btn-select').forEach(btn => {
@@ -66,8 +131,10 @@ $('#btn-top-10').onclick = () => {
 
 // File Upload Handling
 const setFile = file => {
+  resetPreviousResults();
   currentFile = file;
   $('#fname').textContent = file.name;
+  say('#msg', '');
 };
 
 $('#file').onchange = e => e.target.files[0] && setFile(e.target.files[0]);
@@ -85,10 +152,12 @@ dropzone.addEventListener('drop', e => e.dataTransfer.files[0] && setFile(e.data
 // Sample Resume Button
 $('#sample').onclick = async () => {
   try {
-    say('#msg', 'Loading sample technical resume...');
+    resetPreviousResults();
+    say('#msg', 'Loading verified sample technical resume...');
     const res = await fetch('/api/sample');
     const { text } = await res.json();
-    setFile(new File([text], 'sample_resume.txt', { type: 'text/plain' }));
+    currentFile = new File([text], 'sample_resume.txt', { type: 'text/plain' });
+    $('#fname').textContent = 'sample_resume.txt';
     $('#jd').value = 'Backend Engineer with Python, FastAPI, Docker, and SQL experience.';
     runAnalysis();
   } catch (err) {
@@ -96,14 +165,34 @@ $('#sample').onclick = async () => {
   }
 };
 
+// Load Sample Resume from Validation Error Banner
+$('#btn-load-sample-from-error').onclick = () => {
+  $('#sample').click();
+};
+
 $('#go').onclick = runAnalysis;
 
-// API Helper
+// API Helper with Structured Error Parsing
 async function postForm(url, formData) {
   const resp = await fetch(url, { method: 'POST', body: formData });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    throw new Error(data.detail || 'Server responded with an error.');
+    let msg = 'Server responded with an error.';
+    let detailPayload = null;
+    if (data.detail) {
+      if (typeof data.detail === 'object') {
+        msg = data.detail.message || JSON.stringify(data.detail);
+        detailPayload = data.detail;
+      } else {
+        msg = String(data.detail);
+      }
+    } else if (data.message) {
+      msg = data.message;
+    }
+    const err = new Error(msg);
+    err.payload = detailPayload || data;
+    err.status = resp.status;
+    throw err;
   }
   return data;
 }
@@ -121,6 +210,9 @@ async function runAnalysis() {
     return say('#msg', 'Please select or drop a resume file first.', true);
   }
 
+  // Clear any existing results immediately before starting new run
+  resetPreviousResults();
+
   const fd = new FormData();
   fd.append('file', currentFile);
   const targetJd = currentMode === 'target' ? $('#jd').value.trim() : '';
@@ -128,18 +220,43 @@ async function runAnalysis() {
   fd.append('top_n', currentTopN);
 
   $('#go').disabled = true;
-  say('#msg', 'Evaluating resume against hiring funnel and technical taxonomy...');
+  $('#analysis-skeleton').hidden = false;
+  say('#msg', 'Evaluating resume against technical taxonomy and structural standards...');
 
   try {
     analysisData = await postForm('/api/analyze', fd);
+    $('#analysis-skeleton').hidden = true;
     currentResumeText = analysisData.text || '';
     selectedJobIdx = analysisData.custom ? -1 : 0;
     say('#msg', '');
+
+    // Surface explicit resume quality warnings if present
+    if (analysisData.warnings && analysisData.warnings.length) {
+      $('#resume-warnings-list').innerHTML = analysisData.warnings
+        .map(w => `<li>${esc(w)}</li>`)
+        .join('');
+      $('#resume-warnings-card').hidden = false;
+    } else {
+      $('#resume-warnings-card').hidden = true;
+    }
+
     renderDashboard();
     loadOpenRoles(getActiveRoleTitle());
     loadInsights();
+
+    // Refresh user drawer history if signed in
+    if (currentUser) {
+      fetchUserHistory();
+    }
   } catch (err) {
+    $('#analysis-skeleton').hidden = true;
+    resetPreviousResults();
     say('#msg', err.message, true);
+
+    // Display validation error banner with structured guidance
+    const validationMsg = (err.payload && err.payload.message) || err.message;
+    $('#validation-error-text').textContent = validationMsg;
+    $('#validation-error-card').hidden = false;
   } finally {
     $('#go').disabled = false;
   }
@@ -241,7 +358,7 @@ function renderStudyHub(links) {
       <div>
         <div class="study-card-meta">
           <span class="study-skill-badge">${esc(item.skill)}</span>
-          <span class="study-source-tag">${esc(item.source === 'curated' ? 'Curated' : 'Verified Video')}</span>
+          <span class="study-source-tag">${esc(item.source === 'curated' ? 'Curated' : 'Verified Tutorial')}</span>
         </div>
         <h4 class="study-title">${esc(item.title)}</h4>
         <div class="study-channel">Channel: ${esc(item.channel)}</div>
@@ -256,7 +373,7 @@ function renderStudyHub(links) {
   `).join('');
 }
 
-// Render Predicted Roles (Feature 4)
+// Render Predicted Roles
 function renderPredictedRoles(roles) {
   const container = $('#predicted-roles-grid');
   if (!roles || !roles.length) {
@@ -290,17 +407,14 @@ function renderPredictedRoles(roles) {
       selectedJobIdx = idx;
       const targetTitle = btn.dataset.title;
 
-      // Update active card styling
       container.querySelectorAll('.predicted-role-card').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      // Update target role input & reload open roles and study links
       $('#jd').value = targetTitle;
       say('#msg', `Updating diagnostic workbench for: ${targetTitle}...`);
 
       const targetJob = roles[idx];
       if (targetJob && targetJob.missing && targetJob.missing.length) {
-        // Fetch study links for this role's missing skills
         const fd = new FormData();
         fd.append('skills', targetJob.missing.join(','));
         try {
@@ -329,7 +443,7 @@ async function loadPredictedRoles(topN) {
   }
 }
 
-// Fetch Matching Open Roles from Free APIs (Feature 3)
+// Fetch Matching Open Roles from Free APIs
 async function loadOpenRoles(query) {
   const container = $('#open-roles-grid');
   container.innerHTML = `<p class="card-hint">Fetching matching open positions from free job feeds (Remotive / Arbeitnow / Local cache)...</p>`;
@@ -408,7 +522,7 @@ $('#rew').onclick = async () => {
   }
 };
 
-// Market Insights SQL View
+// Market Insights View
 async function loadInsights() {
   try {
     const res = await fetch('/api/insights');
@@ -499,3 +613,158 @@ $('#rgo').onclick = async () => {
     $('#rgo').disabled = false;
   }
 };
+
+// ============================================================================
+// Google OAuth & Session Management
+// ============================================================================
+
+function renderAuthUser(user, history = []) {
+  currentUser = user;
+  $('#btn-google-login').hidden = true;
+  $('#user-chip').hidden = false;
+
+  const avatarSrc = user.avatar_url || getDefaultAvatar(user.name);
+  $('#user-avatar').src = avatarSrc;
+  $('#user-name').textContent = user.name || 'User';
+
+  $('#drawer-avatar').src = avatarSrc;
+  $('#drawer-user-name').textContent = user.name || 'User';
+  $('#drawer-user-email').textContent = user.email || '';
+
+  renderDrawerHistory(history);
+}
+
+function renderGuestUser() {
+  currentUser = null;
+  $('#btn-google-login').hidden = false;
+  $('#user-chip').hidden = true;
+  $('#user-drawer').hidden = true;
+  $('#drawer-backdrop').hidden = true;
+}
+
+function renderDrawerHistory(history) {
+  const container = $('#drawer-history-list');
+  if (!history || !history.length) {
+    container.innerHTML = `<p class="drawer-empty-hint">No resumes analyzed under this account yet.</p>`;
+    return;
+  }
+
+  container.innerHTML = history.map(item => `
+    <div class="drawer-history-item" data-id="${item.id}">
+      <div class="history-item-top">
+        <strong class="history-item-name">${esc(item.filename)}</strong>
+        <span class="history-item-date">${esc(item.created_at ? item.created_at.slice(0, 10) : '')}</span>
+      </div>
+      <div class="history-item-meta">
+        <span>ATS: ${item.ats_score != null ? item.ats_score : '--'}/100</span>
+        <span>•</span>
+        <span>${item.skills ? item.skills.split(',').length : 0} Skills Detected</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function fetchUserHistory() {
+  try {
+    const res = await fetch('/auth/me');
+    const data = await res.json();
+    if (data.user) {
+      renderDrawerHistory(data.history || []);
+    }
+  } catch (err) {
+    console.error('Failed to refresh user history:', err);
+  }
+}
+
+async function initAuth() {
+  try {
+    // 1. Fetch server auth configuration
+    const configRes = await fetch('/auth/config');
+    authConfig = await configRes.json();
+
+    if (authConfig.dev_mode) {
+      $('#google-btn-text').textContent = 'Dev Login (Local Mode)';
+    } else {
+      $('#google-btn-text').textContent = 'Continue with Google';
+    }
+
+    // 2. Fetch current session user
+    const meRes = await fetch('/auth/me');
+    const meData = await meRes.json();
+    if (meData.user) {
+      renderAuthUser(meData.user, meData.history || []);
+    } else {
+      renderGuestUser();
+    }
+  } catch (err) {
+    console.warn('Auth initialization fallback:', err);
+    renderGuestUser();
+  }
+}
+
+// Google Login / Dev Login Click Handler
+$('#btn-google-login').onclick = async () => {
+  if (authConfig.dev_mode || !authConfig.google_client_id) {
+    // Local dev mode fallback login
+    say('#msg', 'Authenticating with local dev credentials...');
+    try {
+      const res = await fetch('/auth/dev-login', { method: 'POST' });
+      const data = await res.json();
+      if (data.user) {
+        renderAuthUser(data.user, []);
+        say('#msg', `Signed in as ${data.user.name} (Local Dev Mode)`);
+      }
+    } catch (err) {
+      say('#msg', 'Dev login error: ' + err.message, true);
+    }
+  } else {
+    // Production Google OAuth
+    say('#msg', 'Connecting to Google OAuth...');
+    // If Google Identity Services client is loaded
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      window.google.accounts.id.prompt();
+    } else {
+      say('#msg', 'Google Sign-In API is initializing. Please try again in a moment.');
+    }
+  }
+};
+
+// User Profile Chip Click (Toggle Drawer)
+$('#user-chip').onclick = () => {
+  const isHidden = $('#user-drawer').hidden;
+  $('#user-drawer').hidden = !isHidden;
+  $('#drawer-backdrop').hidden = !isHidden;
+  if (isHidden) {
+    fetchUserHistory();
+  }
+};
+
+// Close Drawer Buttons
+$('#drawer-close').onclick = () => {
+  $('#user-drawer').hidden = true;
+  $('#drawer-backdrop').hidden = true;
+};
+
+$('#drawer-backdrop').onclick = () => {
+  $('#user-drawer').hidden = true;
+  $('#drawer-backdrop').hidden = true;
+};
+
+// Sign Out
+$('#btn-logout').onclick = async () => {
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+    renderGuestUser();
+    say('#msg', 'Signed out successfully.');
+  } catch (err) {
+    console.error('Logout error:', err);
+  }
+};
+
+// Initialize Auth & App on Page Load
+document.addEventListener('DOMContentLoaded', () => {
+  initAuth();
+});
+if (document.readyState !== 'loading') {
+  initAuth();
+}

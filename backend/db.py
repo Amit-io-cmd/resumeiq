@@ -14,6 +14,9 @@ def skill_id(c, name):
 def init():
     with conn() as c:
         c.executescript((pathlib.Path(__file__).parent / "schema.sql").read_text())
+        cols = [col[1] for col in c.execute("PRAGMA table_info(resumes)").fetchall()]
+        if "user_id" not in cols:
+            c.execute("ALTER TABLE resumes ADD COLUMN user_id INTEGER REFERENCES users(id)")
         for job in json.loads((ROOT / "data" / "jobs.json").read_text()):
             existing = c.execute(
                 "SELECT id FROM jobs WHERE title=? AND company=?",
@@ -44,14 +47,17 @@ def jobs():
             out.append({**dict(j), "skills": sk})
         return out
 
-def save_resume(filename, text, ats_score, years, skills, matches):
+def save_resume(filename, text, ats_score, years, skills, matches, user_id=None):
     with conn() as c:
-        rid = c.execute("INSERT INTO resumes(filename,raw_text,ats_score,years) VALUES (?,?,?,?)", (filename, text, ats_score, years)).lastrowid
+        rid = c.execute(
+            "INSERT INTO resumes(user_id, filename, raw_text, ats_score, years) VALUES (?,?,?,?,?)",
+            (user_id, filename, text, ats_score, years)
+        ).lastrowid
         for s in skills:
             c.execute("INSERT OR IGNORE INTO resume_skills VALUES (?,?)", (rid, skill_id(c, s)))
         for m in matches:
             c.execute("INSERT INTO matches(resume_id,job_id,score,missing_skills) VALUES (?,?,?,?)",
-                      (rid, m["job_id"], m["score"], ",".join(m["missing"])))
+                      (rid, m["job_id"], m["score"], ",".join(m.get("missing", []))))
         return rid
 
 
@@ -78,6 +84,54 @@ def insights():
         }
 
 
+# ---------- User & Auth Management ----------
+def upsert_google_user(google_sub: str, email: str, name: str, avatar_url: str):
+    with conn() as c:
+        row = c.execute("SELECT * FROM users WHERE google_sub=? OR email=?", (google_sub, email)).fetchone()
+        if row:
+            c.execute(
+                "UPDATE users SET google_sub=?, email=?, name=?, avatar_url=?, last_login_at=CURRENT_TIMESTAMP WHERE id=?",
+                (google_sub, email, name, avatar_url, row["id"])
+            )
+            user_id = row["id"]
+        else:
+            cursor = c.execute(
+                "INSERT INTO users(google_sub, email, name, avatar_url) VALUES (?, ?, ?, ?)",
+                (google_sub, email, name, avatar_url)
+            )
+            user_id = cursor.lastrowid
+        user_row = c.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        return dict(user_row)
+
+
+def get_user_by_id(user_id: int):
+    with conn() as c:
+        row = c.execute(
+            "SELECT id, google_sub, email, name, avatar_url, created_at, last_login_at FROM users WHERE id=?",
+            (user_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_user_by_email(email: str):
+    with conn() as c:
+        row = c.execute(
+            "SELECT id, google_sub, email, name, avatar_url, created_at, last_login_at FROM users WHERE email=?",
+            (email,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_user_resumes(user_id: int, limit: int = 10):
+    with conn() as c:
+        rows = c.execute(
+            "SELECT id, filename, ats_score, years, uploaded_at FROM resumes WHERE user_id=? ORDER BY id DESC LIMIT ?",
+            (user_id, limit)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ---------- Cache Helpers ----------
 def get_cached_youtube(skill: str):
     with conn() as c:
         row = c.execute("SELECT title, channel, url FROM youtube_cache WHERE LOWER(skill)=LOWER(?)", (skill,)).fetchone()
@@ -101,10 +155,8 @@ def get_cached_external_jobs(query: str, ttl_seconds: int = 3600):
         row = c.execute("SELECT raw_json, cached_at FROM external_jobs_cache WHERE query=?", (normalized,)).fetchone()
         if not row:
             return None
-        # Parse timestamp
         cached_at_str = row["cached_at"]
         try:
-            # Handle standard SQLite format 'YYYY-MM-DD HH:MM:SS'
             cached_dt = datetime.strptime(cached_at_str, "%Y-%m-%d %H:%M:%S")
             age = (datetime.now() - cached_dt).total_seconds()
             if age > ttl_seconds:
@@ -127,10 +179,12 @@ def save_external_jobs_cache(query: str, jobs_data):
             (normalized, raw)
         )
 
-# Ensure all schema tables exist on load
+# Ensure all schema tables and columns exist on load
 try:
     with conn() as _c:
         _c.executescript((pathlib.Path(__file__).parent / "schema.sql").read_text())
+        cols = [col[1] for col in _c.execute("PRAGMA table_info(resumes)").fetchall()]
+        if "user_id" not in cols:
+            _c.execute("ALTER TABLE resumes ADD COLUMN user_id INTEGER REFERENCES users(id)")
 except Exception:
     pass
-

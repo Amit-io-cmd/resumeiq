@@ -1,7 +1,13 @@
-from typing import List
+from typing import List, Optional
 import logging
 import json
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import os
+import time
+import hmac
+import hashlib
+import urllib.request
+import urllib.parse
+from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import engine as E, db
@@ -11,8 +17,48 @@ db.init()
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+SESSION_SECRET = os.getenv("SESSION_SECRET", "resumeiq-secure-session-key-dev-fallback")
+SESSION_COOKIE_NAME = "resumeiq_session"
 
-async def read(file: UploadFile) -> str:
+
+# ---------- Session & Auth Token Management ----------
+def sign_session_token(user_id: int) -> str:
+    timestamp = int(time.time())
+    payload = f"{user_id}:{timestamp}"
+    signature = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def verify_session_token(token: str) -> Optional[int]:
+    if not token or token.count(":") != 2:
+        return None
+    try:
+        user_id_str, timestamp_str, sig = token.split(":")
+        payload = f"{user_id_str}:{timestamp_str}"
+        expected_sig = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return None
+        # Max age: 30 days
+        timestamp = int(timestamp_str)
+        if time.time() - timestamp > (30 * 86400):
+            return None
+        return int(user_id_str)
+    except Exception:
+        return None
+
+
+def get_current_user(request: Request) -> Optional[dict]:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if not token:
+        return None
+    user_id = verify_session_token(token)
+    if not user_id:
+        return None
+    return db.get_user_by_id(user_id)
+
+
+# ---------- File Extraction & Validation ----------
+async def read(file: UploadFile):
     filename = file.filename or ""
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -20,21 +66,135 @@ async def read(file: UploadFile) -> str:
     try:
         text = E.extract_text(filename, data).strip()
     except E.ResumeFileError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    if len(text) < 80:
-        if filename.lower().endswith(".pdf"):
-            raise HTTPException(400, "This PDF has little or no selectable text. If it is scanned, run OCR and upload a searchable PDF.")
-        raise HTTPException(400, "Could not read text from this file. Upload a text-based PDF, DOCX or TXT.")
-    return text
+        raise HTTPException(400, detail={"valid_resume": False, "message": str(exc), "warnings": []}) from exc
+
+    # Structural & readability validity guard
+    is_valid, err_msg, warnings, _ = E.validate_resume_text(text)
+    if not is_valid:
+        raise HTTPException(400, detail={"valid_resume": False, "message": err_msg, "warnings": warnings})
+
+    return text, warnings
+
 
 def score_job(text, skills, years, job):
     m = E.match(text, skills, years, job["title"] + ". " + job["description"], job["skills"], job.get("min_years", 0))
     return {"job_id": job["id"], "title": job["title"], "company": job["company"], "location": job["location"],
             "description": job["description"], **m}
 
+
+# ---------- Auth Endpoints ----------
+@app.get("/auth/config")
+def auth_config():
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    return {
+        "google_client_id": client_id,
+        "dev_mode": not bool(client_id)
+    }
+
+
+@app.post("/auth/google")
+async def auth_google(request: Request, response: Response, credential: str = Form(""), id_token: str = Form("")):
+    token = credential.strip() or id_token.strip()
+    if not token:
+        raise HTTPException(400, "Google ID token or credential is required.")
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+
+    # Local development bypass mode when client_id is not configured
+    if not client_id or token.startswith("dev_"):
+        user = db.upsert_google_user(
+            google_sub="dev_local_user",
+            email="demo-engineer@resumeiq.local",
+            name="Dev Engineer",
+            avatar_url=""
+        )
+        session_token = sign_session_token(user["id"])
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_token,
+            httponly=True,
+            samesite="lax",
+            max_age=30 * 86400,
+            path="/"
+        )
+        return {"success": True, "user": user, "dev_mode": True}
+
+    # Verify ID token with Google's tokeninfo endpoint
+    try:
+        req_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote_plus(token)}"
+        req = urllib.request.Request(req_url, headers={"User-Agent": "ResumeIQ-Auth/1.0"})
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            if resp.status != 200:
+                raise HTTPException(401, "Google token verification failed.")
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        logger.warning("Google token verification network call error: %s", exc)
+        raise HTTPException(401, "Could not verify Google ID token with Google servers.")
+
+    # Validate audience
+    if payload.get("aud") != client_id:
+        raise HTTPException(401, "Google ID token audience mismatch.")
+
+    google_sub = payload.get("sub")
+    email = payload.get("email", "")
+    name = payload.get("name") or email.split("@")[0] or "User"
+    avatar_url = payload.get("picture", "")
+
+    if not google_sub or not email:
+        raise HTTPException(400, "Incomplete profile information in Google ID token.")
+
+    user = db.upsert_google_user(google_sub, email, name, avatar_url)
+    session_token = sign_session_token(user["id"])
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=30 * 86400,
+        path="/"
+    )
+    return {"success": True, "user": user, "dev_mode": False}
+
+
+@app.post("/auth/dev-login")
+def dev_login(response: Response):
+    user = db.upsert_google_user(
+        google_sub="dev_local_demo_account",
+        email="demo-engineer@resumeiq.local",
+        name="Demo Engineer (Local Dev)",
+        avatar_url=""
+    )
+    session_token = sign_session_token(user["id"])
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=30 * 86400,
+        path="/"
+    )
+    return {"success": True, "user": user, "dev_mode": True}
+
+
+@app.get("/auth/me")
+def auth_me(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return {"user": None, "history": []}
+    history = db.get_user_resumes(user["id"], limit=10)
+    return {"user": user, "history": history}
+
+
+@app.post("/auth/logout")
+def auth_logout(response: Response):
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return {"success": True}
+
+
+# ---------- Resume Analysis & Matching ----------
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...), jd: str = Form(""), top_n: int = Form(5)):
-    text = await read(file)
+async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form(""), top_n: int = Form(5)):
+    text, warnings = await read(file)
     skills, spans = E.find_skills(text)
     years = E.years_of_experience(text)
     ats_score, tips, *rest = E.ats(text)
@@ -62,10 +222,15 @@ async def analyze(file: UploadFile = File(...), jd: str = Form(""), top_n: int =
     study_links = E.get_study_links_for_skills(missing_skills[:8])
     predicted_roles = E.predict_top_roles(text, skills, years, db.jobs(), top_n=top_n)
 
-    rid = db.save_resume(file.filename, text, ats_score, years, skills, matches)
+    user = get_current_user(request)
+    user_id = user["id"] if user else None
+    rid = db.save_resume(file.filename, text, ats_score, years, skills, matches, user_id=user_id)
+
     return {"resume_id": rid, "text": text, "spans": spans, "skills": sorted(skills), "years": years,
             "ats": {"score": ats_score, "tips": tips, "categories": categories}, "matches": matches[:8], "custom": custom,
-            "study_links": study_links, "predicted_roles": predicted_roles}
+            "study_links": study_links, "predicted_roles": predicted_roles,
+            "valid_resume": True, "warnings": warnings}
+
 
 @app.post("/api/recruiter")
 async def recruiter(files: List[UploadFile] = File(...), jd: str = Form(...), anonymize: bool = Form(False),
@@ -83,7 +248,7 @@ async def recruiter(files: List[UploadFile] = File(...), jd: str = Form(...), an
         raise HTTPException(400, "The job description has no experience requirement. Give meaning similarity or skill overlap a positive weight.")
     rows = []
     for i, f in enumerate(files):
-        text = await read(f)
+        text, _ = await read(f)
         skills, _ = E.find_skills(text)
         years = E.years_of_experience(text)
         display_text = E.anonymize(text) if anonymize else text
@@ -93,15 +258,17 @@ async def recruiter(files: List[UploadFile] = File(...), jd: str = Form(...), an
     rows.sort(key=lambda r: -r["score"])
     return {"required": sorted(jskills), "candidates": rows}
 
+
+
 @app.post("/api/rewrite")
 async def rewrite(file: UploadFile = File(...)):
-    text = await read(file)
+    text, _ = await read(file)
     return {"suggestions": E.rewrite_suggestions(text)}
 
 
 @app.post("/api/export/docx")
 async def export_docx(file: UploadFile = File(...), edits: str = Form("[]")):
-    text = await read(file)
+    text, _ = await read(file)
     try:
         changes = json.loads(edits)
     except json.JSONDecodeError as exc:
@@ -138,12 +305,14 @@ async def predict_roles(resume_text: str = Form(...), top_n: int = Form(5)):
     n = max(1, min(20, top_n))
     return {"predicted_roles": E.predict_top_roles(resume_text, skills, years, db.jobs(), top_n=n)}
 
+
 @app.post("/api/roles/open")
 async def open_roles(role_query: str = Form(...), resume_text: str = Form("")):
     skills, _ = E.find_skills(resume_text) if resume_text else (set(), [])
     years = E.years_of_experience(resume_text) if resume_text else 0.0
     roles = E.fetch_matching_open_roles(role_query, resume_text, skills, years, limit=10)
     return {"open_roles": roles}
+
 
 @app.post("/api/skills/study")
 async def study_links(skills: str = Form(...)):
@@ -152,17 +321,22 @@ async def study_links(skills: str = Form(...)):
         return {"study_links": []}
     return {"study_links": E.get_study_links_for_skills(skill_list[:12])}
 
+
 @app.get("/api/history")
 def resume_history(filename: str):
     return {"versions": db.resume_history(filename)}
 
+
 @app.get("/api/jobs")
 def jobs(): return db.jobs()
+
 
 @app.get("/api/insights")
 def insights(): return db.insights()
 
+
 @app.get("/api/sample")
 def sample(): return JSONResponse({"text": (db.ROOT / "data" / "sample_resume.txt").read_text(encoding="utf-8")})
+
 
 app.mount("/", StaticFiles(directory=db.ROOT / "frontend", html=True), name="web")
