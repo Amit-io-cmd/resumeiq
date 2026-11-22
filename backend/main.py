@@ -33,7 +33,7 @@ def score_job(text, skills, years, job):
             "description": job["description"], **m}
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...), jd: str = Form("")):
+async def analyze(file: UploadFile = File(...), jd: str = Form(""), top_n: int = Form(5)):
     text = await read(file)
     skills, spans = E.find_skills(text)
     years = E.years_of_experience(text)
@@ -56,9 +56,16 @@ async def analyze(file: UploadFile = File(...), jd: str = Form("")):
         custom = {"job_id": 0, "title": target_title, "company": target_company, "location": "", "description": target_text,
                   "keywords": E.compare_job_keywords(target_text, text),
                   **E.match(text, skills, years, target_text, jskills, min_years)}
+    
+    target_job = custom or (matches[0] if matches else None)
+    missing_skills = target_job.get("missing", []) if target_job else []
+    study_links = E.get_study_links_for_skills(missing_skills[:8])
+    predicted_roles = E.predict_top_roles(text, skills, years, db.jobs(), top_n=top_n)
+
     rid = db.save_resume(file.filename, text, ats_score, years, skills, matches)
     return {"resume_id": rid, "text": text, "spans": spans, "skills": sorted(skills), "years": years,
-            "ats": {"score": ats_score, "tips": tips, "categories": categories}, "matches": matches[:8], "custom": custom}
+            "ats": {"score": ats_score, "tips": tips, "categories": categories}, "matches": matches[:8], "custom": custom,
+            "study_links": study_links, "predicted_roles": predicted_roles}
 
 @app.post("/api/recruiter")
 async def recruiter(files: List[UploadFile] = File(...), jd: str = Form(...), anonymize: bool = Form(False),
@@ -121,6 +128,29 @@ async def outreach(resume_text: str = Form(...), job_title: str = Form(...), com
         raise HTTPException(400, "Analyze a readable resume before generating outreach.")
     return E.generate_outreach(resume_text, job_title, company, job_description)
 
+
+@app.post("/api/roles/predict")
+async def predict_roles(resume_text: str = Form(...), top_n: int = Form(5)):
+    if not resume_text.strip():
+        raise HTTPException(400, "Resume text is required.")
+    skills, _ = E.find_skills(resume_text)
+    years = E.years_of_experience(resume_text)
+    n = max(1, min(20, top_n))
+    return {"predicted_roles": E.predict_top_roles(resume_text, skills, years, db.jobs(), top_n=n)}
+
+@app.post("/api/roles/open")
+async def open_roles(role_query: str = Form(...), resume_text: str = Form("")):
+    skills, _ = E.find_skills(resume_text) if resume_text else (set(), [])
+    years = E.years_of_experience(resume_text) if resume_text else 0.0
+    roles = E.fetch_matching_open_roles(role_query, resume_text, skills, years, limit=10)
+    return {"open_roles": roles}
+
+@app.post("/api/skills/study")
+async def study_links(skills: str = Form(...)):
+    skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+    if not skill_list:
+        return {"study_links": []}
+    return {"study_links": E.get_study_links_for_skills(skill_list[:12])}
 
 @app.get("/api/history")
 def resume_history(filename: str):

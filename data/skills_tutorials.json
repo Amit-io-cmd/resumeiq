@@ -1,0 +1,202 @@
+{
+  "Python": {
+    "title": "Python for Beginners - Full Course [Programming Tutorial]",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=rfscVS0vtbw"
+  },
+  "JavaScript": {
+    "title": "JavaScript Programming - Full Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=jS4aFq5-91M"
+  },
+  "TypeScript": {
+    "title": "TypeScript Course for Beginners - Learn TypeScript from Scratch",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=BwuLxPH8IDs"
+  },
+  "React": {
+    "title": "React Course - Beginner's Tutorial for React JavaScript Library",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=bMknfKXIFA8"
+  },
+  "Next.js": {
+    "title": "Next.js 14 Full Course 2024 | Build and Deploy a Full Stack App",
+    "channel": "JavaScript Mastery",
+    "url": "https://www.youtube.com/watch?v=wm5gMKuwSYk"
+  },
+  "Node.js": {
+    "title": "Node.js and Express.js - Full Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=Oe421EPjeBE"
+  },
+  "Express": {
+    "title": "Express JS Crash Course",
+    "channel": "Traversy Media",
+    "url": "https://www.youtube.com/watch?v=L72fhGm1tfE"
+  },
+  "FastAPI": {
+    "title": "Python FastAPI Tutorial: Build a Complete REST API",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=0sOvCWFmrtA"
+  },
+  "Django": {
+    "title": "Python Django Full Course - Learn Web Development",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=F5mRW0jo-U4"
+  },
+  "Flask": {
+    "title": "Flask Course - Python Web Application Development",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=Z1RJmh_OqeA"
+  },
+  "Docker": {
+    "title": "Docker Tutorial for Beginners [Full Course in 3 Hours]",
+    "channel": "TechWorld with Nana",
+    "url": "https://www.youtube.com/watch?v=3c-iBn73dDE"
+  },
+  "Kubernetes": {
+    "title": "Kubernetes Tutorial for Beginners [FULL COURSE in 4 Hours]",
+    "channel": "TechWorld with Nana",
+    "url": "https://www.youtube.com/watch?v=X48VuDVv0do"
+  },
+  "AWS": {
+    "title": "AWS Certified Cloud Practitioner Certification Course (CLF-C02)",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=SOTamWNgDKc"
+  },
+  "SQL": {
+    "title": "SQL Tutorial - Full Database Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=HXV3zeQKqGY"
+  },
+  "PostgreSQL": {
+    "title": "PostgreSQL Tutorial for Beginners",
+    "channel": "Amigoscode",
+    "url": "https://www.youtube.com/watch?v=qw--VYLpxG4"
+  },
+  "MongoDB": {
+    "title": "MongoDB Tutorial for Beginners",
+    "channel": "Programming with Mosh",
+    "url": "https://www.youtube.com/watch?v=ofme2o29ngU"
+  },
+  "Redis": {
+    "title": "Redis Crash Course",
+    "channel": "Traversy Media",
+    "url": "https://www.youtube.com/watch?v=jgpVdJB2sKQ"
+  },
+  "Git": {
+    "title": "Git and GitHub for Beginners - Crash Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=RGOj5yH7evk"
+  },
+  "Pandas": {
+    "title": "Pandas Data Analysis Tutorial for Beginners",
+    "channel": "Keith Galli",
+    "url": "https://www.youtube.com/watch?v=vmEHCJofslg"
+  },
+  "NumPy": {
+    "title": "Python NumPy Tutorial for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=QUT1VHiLmmI"
+  },
+  "PyTorch": {
+    "title": "PyTorch for Deep Learning & Machine Learning – Full Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=V_xro1bcAuA"
+  },
+  "TensorFlow": {
+    "title": "TensorFlow 2.0 Complete Course - Python Neural Networks for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=tPYj3fFJGjk"
+  },
+  "Machine Learning": {
+    "title": "Machine Learning Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=NWONeJKn6kc"
+  },
+  "Deep Learning": {
+    "title": "Deep Learning Crash Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=VyWAvY2CF9c"
+  },
+  "scikit-learn": {
+    "title": "Machine Learning with Python and Scikit-Learn - Full Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=hDKCxebp88A"
+  },
+  "REST API": {
+    "title": "REST APIs in 100 Seconds // Build an API with Node.js",
+    "channel": "Fireship",
+    "url": "https://www.youtube.com/watch?v=-MTSQjw5DrM"
+  },
+  "Microservices": {
+    "title": "Microservices Explained in 5 Minutes",
+    "channel": "ByteByteGo",
+    "url": "https://www.youtube.com/watch?v=CdBtQk9KVv0"
+  },
+  "System Design": {
+    "title": "System Design for Beginners Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=m8Icp_Cid5o"
+  },
+  "Data Structures": {
+    "title": "Data Structures Easy to Advanced Course - Full Tutorial",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=RBSGKlAvoiM"
+  },
+  "Algorithms": {
+    "title": "Algorithms and Data Structures Tutorial - Full Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=8hly31xKli0"
+  },
+  "CI/CD": {
+    "title": "CI/CD Pipeline Tutorial for Beginners",
+    "channel": "TechWorld with Nana",
+    "url": "https://www.youtube.com/watch?v=scEDHsr3APg"
+  },
+  "Linux": {
+    "title": "Linux for Beginners – Full Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=sWbGOq4yttU"
+  },
+  "Tailwind": {
+    "title": "Tailwind CSS Full Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=lCxcTsOHrjo"
+  },
+  "HTML": {
+    "title": "HTML Full Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=kUMe1FH4CHE"
+  },
+  "CSS": {
+    "title": "CSS Tutorial - Full Course for Beginners",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=1Rs2ND1ryYc"
+  },
+  "Data Visualization": {
+    "title": "Data Visualization Beginner's Guide",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=a9UrKTVEeZA"
+  },
+  "Tableau": {
+    "title": "Tableau for Beginners - Complete Course",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=TPPlXqm4g2g"
+  },
+  "Power BI": {
+    "title": "Power BI Full Course - Learn Power BI in 4 Hours",
+    "channel": "Edureka",
+    "url": "https://www.youtube.com/watch?v=3gWWbWk_wB8"
+  },
+  "Kafka": {
+    "title": "Apache Kafka Crash Course",
+    "channel": "Hussein Nasser",
+    "url": "https://www.youtube.com/watch?v=R873BlNVUB4"
+  },
+  "GraphQL": {
+    "title": "GraphQL Full Course - Novice to Expert",
+    "channel": "freeCodeCamp.org",
+    "url": "https://www.youtube.com/watch?v=ed8SzALpx1Q"
+  }
+}

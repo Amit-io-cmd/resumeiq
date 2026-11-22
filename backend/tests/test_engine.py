@@ -9,6 +9,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import engine
+import db
+db.init()
 
 
 def make_pdf(text: str) -> bytes:
@@ -204,6 +206,35 @@ EDUCATION
         content = "\n".join(paragraph.text for paragraph in document.paragraphs)
         self.assertIn("Managed Python services and improved reliability.", content)
         self.assertNotIn("Responsible for building Python services.", content)
+
+
+class NewFeaturesTests(unittest.TestCase):
+    def test_pure_python_tfidf_similarity(self):
+        sim = engine._pure_python_tfidf_similarity(
+            "Python FastAPI Docker backend developer",
+            "Python FastAPI backend engineer microservices"
+        )
+        self.assertGreater(sim, 0.4)
+        zero_sim = engine._pure_python_tfidf_similarity("apple orange banana", "car truck motorcycle")
+        self.assertEqual(zero_sim, 0.0)
+
+    def test_predict_top_roles(self):
+        jobs = [
+            {"id": 1, "title": "Python Developer", "skills": ["Python", "FastAPI", "SQL"], "description": "Python APIs", "min_years": 1},
+            {"id": 2, "title": "Frontend React Dev", "skills": ["React", "JavaScript", "CSS"], "description": "React UI", "min_years": 1}
+        ]
+        text = "Experienced Python developer skilled in Python, FastAPI, and SQL databases. Built REST APIs."
+        skills = {"Python", "FastAPI", "SQL"}
+        roles = engine.predict_top_roles(text, skills, 2.0, jobs, top_n=2)
+        self.assertEqual(len(roles), 2)
+        self.assertEqual(roles[0]["title"], "Python Developer")
+        self.assertGreater(roles[0]["score"], roles[1]["score"])
+        self.assertIn("why_it_fits", roles[0])
+
+    def test_get_study_links_curated_fallback(self):
+        links = engine.get_study_links_for_skills(["Python", "Docker"])
+        self.assertEqual(len(links), 2)
+        self.assertTrue(all("url" in item and "title" in item and "channel" in item for item in links))
 
 
 if __name__ == "__main__":

@@ -4,3 +4,5 @@ CREATE TABLE IF NOT EXISTS job_skills (job_id INTEGER REFERENCES jobs(id), skill
 CREATE TABLE IF NOT EXISTS resumes (id INTEGER PRIMARY KEY, filename TEXT, raw_text TEXT, ats_score REAL, years REAL, uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS resume_skills (resume_id INTEGER REFERENCES resumes(id), skill_id INTEGER REFERENCES skills(id), PRIMARY KEY (resume_id, skill_id));
 CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, resume_id INTEGER REFERENCES resumes(id), job_id INTEGER REFERENCES jobs(id), score REAL, missing_skills TEXT);
+CREATE TABLE IF NOT EXISTS youtube_cache (skill TEXT PRIMARY KEY, title TEXT, channel TEXT, url TEXT, cached_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS external_jobs_cache (query TEXT PRIMARY KEY, raw_json TEXT, cached_at DATETIME DEFAULT CURRENT_TIMESTAMP);

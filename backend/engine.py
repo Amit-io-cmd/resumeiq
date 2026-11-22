@@ -778,3 +778,288 @@ def interview_prep(job_title: str, matched_skills: List[str], missing_skills: Li
     })
     
     return questions
+
+
+# ---------- Pure-Python TF-IDF Cosine Similarity Fallback ----------
+def _pure_python_tfidf_similarity(doc_a: str, doc_b: str) -> float:
+    """Calculates cosine similarity between two texts using pure Python without external dependencies."""
+    import math
+    from collections import Counter
+    words_a = re.findall(r"[a-z0-9+#.-]+", doc_a.lower())
+    words_b = re.findall(r"[a-z0-9+#.-]+", doc_b.lower())
+    if not words_a or not words_b:
+        return 0.0
+    ca, cb = Counter(words_a), Counter(words_b)
+    all_words = set(ca) | set(cb)
+    dot = sum(ca.get(w, 0) * cb.get(w, 0) for w in all_words)
+    norm_a = math.sqrt(sum(v * v for v in ca.values()))
+    norm_b = math.sqrt(sum(v * v for v in cb.values()))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return min(1.0, dot / (norm_a * norm_b))
+
+
+def compute_text_similarity(doc_a: str, doc_b: str) -> float:
+    """Uses sklearn TfidfVectorizer if available, otherwise pure Python fallback."""
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        vec = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
+        matrix = vec.fit_transform([doc_a, doc_b])
+        cos = float((matrix[0] @ matrix[1].T).toarray()[0, 0])
+        return min(1.0, max(0.0, cos))
+    except Exception:
+        return _pure_python_tfidf_similarity(doc_a, doc_b)
+
+
+# ---------- YouTube Study Links Resolution ----------
+def get_study_links_for_skills(missing_skills: List[str]) -> List[Dict[str, Any]]:
+    import db
+    import urllib.request
+    import urllib.parse
+    import json
+
+    curated_file = DATA / "skills_tutorials.json"
+    curated_map = {}
+    if curated_file.exists():
+        try:
+            curated_map = json.loads(curated_file.read_text(encoding="utf-8"))
+        except Exception:
+            curated_map = {}
+
+    youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+    results = []
+
+    for skill in missing_skills:
+        skill_clean = skill.strip()
+        if not skill_clean:
+            continue
+
+        # 1. Check SQLite Cache
+        cached = db.get_cached_youtube(skill_clean)
+        if cached:
+            results.append({
+                "skill": skill_clean,
+                "title": cached["title"],
+                "channel": cached["channel"],
+                "url": cached["url"],
+                "source": "cache"
+            })
+            continue
+
+        # 2. Check YouTube Data API if key present
+        api_success = False
+        if youtube_api_key:
+            try:
+                query = urllib.parse.quote_plus(f"{skill_clean} tutorial for beginners full course")
+                req_url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&q={query}&type=video&maxResults=1&key={youtube_api_key}"
+                req = urllib.request.Request(req_url, headers={"User-Agent": "ResumeIQ/1.0"})
+                with urllib.request.urlopen(req, timeout=3.5) as resp:
+                    if resp.status == 200:
+                        payload = json.loads(resp.read().decode("utf-8"))
+                        items = payload.get("items", [])
+                        if items:
+                            item = items[0]
+                            title = item.get("snippet", {}).get("title", f"Learn {skill_clean}")
+                            channel = item.get("snippet", {}).get("channelTitle", "YouTube")
+                            vid = item.get("id", {}).get("videoId")
+                            video_url = f"https://www.youtube.com/watch?v={vid}" if vid else f"https://www.youtube.com/results?search_query={query}"
+                            db.save_youtube_cache(skill_clean, title, channel, video_url)
+                            results.append({
+                                "skill": skill_clean,
+                                "title": title,
+                                "channel": channel,
+                                "url": video_url,
+                                "source": "youtube_api"
+                            })
+                            api_success = True
+            except Exception as exc:
+                logger.warning("YouTube Data API call failed for %s: %s", skill_clean, exc)
+
+        if api_success:
+            continue
+
+        # 3. Check Curated Local JSON Fallback
+        if skill_clean in curated_map:
+            tut = curated_map[skill_clean]
+            db.save_youtube_cache(skill_clean, tut["title"], tut["channel"], tut["url"])
+            results.append({
+                "skill": skill_clean,
+                "title": tut["title"],
+                "channel": tut["channel"],
+                "url": tut["url"],
+                "source": "curated"
+            })
+            continue
+
+        # 4. Fallback to direct search URL
+        search_query = urllib.parse.quote_plus(f"learn {skill_clean} tutorial for beginners")
+        search_url = f"https://www.youtube.com/results?search_query={search_query}"
+        fallback_title = f"{skill_clean} Comprehensive Tutorial & Project Guide"
+        fallback_channel = "YouTube Tutorial Search"
+        db.save_youtube_cache(skill_clean, fallback_title, fallback_channel, search_url)
+        results.append({
+            "skill": skill_clean,
+            "title": fallback_title,
+            "channel": fallback_channel,
+            "url": search_url,
+            "source": "search_fallback"
+        })
+
+    return results
+
+
+# ---------- Auto-Predict Top Suitable Roles ----------
+def predict_top_roles(resume_text: str, resume_skills: Set[str], resume_years: float, available_jobs: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
+    scored_roles = []
+
+    for job in available_jobs:
+        job_skills = set(job.get("skills", []))
+        if not job_skills and job.get("description"):
+            job_skills, _ = find_skills(job["description"])
+
+        matched = sorted(set(resume_skills) & job_skills)
+        missing = sorted(job_skills - set(resume_skills))
+
+        # Skill overlap score
+        skill_score = len(matched) / len(job_skills) if job_skills else 0.5
+
+        # Semantic/TF-IDF text similarity
+        job_full_text = f"{job.get('title', '')}. {job.get('description', '')}"
+        text_sim = compute_text_similarity(resume_text, job_full_text)
+
+        # Experience fit
+        min_years = float(job.get("min_years", 0))
+        exp_score = min(1.0, resume_years / min_years) if min_years > 0 else 1.0
+
+        # Weighted hybrid score (50% skills, 35% text similarity, 15% experience)
+        final_score = round(min(100.0, 50 * skill_score + 35 * text_sim + 15 * exp_score), 1)
+
+        # Generate engineering rationale
+        if skill_score >= 0.7:
+            why = f"Strong match: Covers {len(matched)} core skills ({', '.join(matched[:3])}) with matching technical domain fit."
+        elif skill_score >= 0.4:
+            why = f"Good foundational alignment: Matches {len(matched)} skills ({', '.join(matched[:3]) if matched else 'core tools'}); needs ramp-up in {', '.join(missing[:2]) if missing else 'specialized tools'}."
+        else:
+            why = f"Transferable engineering concepts ({', '.join(matched[:2]) if matched else 'general software'}); bridge gap by learning {', '.join(missing[:2]) if missing else 'role stack'}."
+
+        scored_roles.append({
+            "job_id": job.get("id"),
+            "title": job.get("title", "Software Engineer"),
+            "company": job.get("company", "Industry Standard"),
+            "location": job.get("location", "Remote"),
+            "description": job.get("description", ""),
+            "score": final_score,
+            "skills": sorted(job_skills),
+            "matched": matched,
+            "missing": missing,
+            "why_it_fits": why,
+            "top_gaps": missing[:3]
+        })
+
+    scored_roles.sort(key=lambda r: -r["score"])
+    return scored_roles[:top_n]
+
+
+# ---------- Matching Open Roles (Free APIs + Cache + Fallback) ----------
+def fetch_matching_open_roles(role_query: str, resume_text: str, resume_skills: Set[str], resume_years: float, limit: int = 10) -> List[Dict[str, Any]]:
+    import db
+    import urllib.request
+    import urllib.parse
+    import json
+
+    q = role_query.strip()
+    if not q:
+        q = "Software Engineer"
+
+    # 1. Check SQLite Cache (1-hour TTL)
+    cached_jobs = db.get_cached_external_jobs(q, ttl_seconds=3600)
+    raw_jobs = cached_jobs
+
+    if not raw_jobs:
+        raw_jobs = []
+        # 2. Try Free Remotive API
+        try:
+            encoded_q = urllib.parse.quote_plus(q)
+            api_url = f"https://remotive.com/api/remote-jobs?search={encoded_q}&limit=12"
+            req = urllib.request.Request(api_url, headers={"User-Agent": "ResumeIQ-Workbench/1.0"})
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    for i, item in enumerate(data.get("jobs", [])):
+                        clean_desc = re.sub(r"<[^>]+>", " ", item.get("description", ""))
+                        clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
+                        raw_jobs.append({
+                            "id": f"remotive-{item.get('id', i)}",
+                            "title": item.get("title", q),
+                            "company": item.get("company_name", "Remote Co"),
+                            "location": item.get("candidate_required_location", "Remote"),
+                            "description": clean_desc[:1200],
+                            "url": item.get("url", "https://remotive.com/"),
+                            "source": "Remotive"
+                        })
+        except Exception as exc:
+            logger.warning("Remotive API fetch failed: %s", exc)
+
+        # 3. If Remotive failed or was empty, try Arbeitnow API
+        if not raw_jobs:
+            try:
+                arbeit_url = "https://www.arbeitnow.com/api/job-board-api"
+                req = urllib.request.Request(arbeit_url, headers={"User-Agent": "ResumeIQ-Workbench/1.0"})
+                with urllib.request.urlopen(req, timeout=4.0) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        for i, item in enumerate(data.get("data", [])[:12]):
+                            clean_desc = re.sub(r"<[^>]+>", " ", item.get("description", ""))
+                            clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
+                            raw_jobs.append({
+                                "id": f"arbeitnow-{item.get('slug', i)}",
+                                "title": item.get("title", q),
+                                "company": item.get("company_name", "Tech Co"),
+                                "location": item.get("location", "Remote / Europe"),
+                                "description": clean_desc[:1200],
+                                "url": item.get("url", "https://www.arbeitnow.com/"),
+                                "source": "Arbeitnow"
+                            })
+            except Exception as exc:
+                logger.warning("Arbeitnow API fetch failed: %s", exc)
+
+        # 4. Fallback to local SQLite jobs if both external APIs are unreachable or empty
+        if not raw_jobs:
+            for job in db.jobs():
+                raw_jobs.append({
+                    "id": f"local-{job['id']}",
+                    "title": job["title"],
+                    "company": job["company"],
+                    "location": job.get("location", "Hybrid"),
+                    "description": job["description"],
+                    "url": f"https://www.google.com/search?q={urllib.parse.quote_plus(job['title'] + ' ' + job['company'] + ' jobs')}",
+                    "source": "Verified Database"
+                })
+
+        # Save in SQLite cache
+        if raw_jobs:
+            db.save_external_jobs_cache(q, raw_jobs)
+
+    # Score and enrich the jobs
+    scored_jobs = []
+    for item in raw_jobs:
+        job_text = f"{item['title']}. {item['description']}"
+        found_skills, _ = find_skills(job_text)
+        m = match(resume_text, resume_skills, resume_years, job_text, found_skills, min_years=0)
+        scored_jobs.append({
+            "id": item["id"],
+            "title": item["title"],
+            "company": item["company"],
+            "location": item.get("location", "Remote"),
+            "description": item["description"],
+            "url": item.get("url", "#"),
+            "source": item.get("source", "Job Board"),
+            "score": m["score"],
+            "matched": m["matched"],
+            "missing": m["missing"],
+            "breakdown": m["breakdown"]
+        })
+
+    scored_jobs.sort(key=lambda j: -j["score"])
+    return scored_jobs[:limit]
+
