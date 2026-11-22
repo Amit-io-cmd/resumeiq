@@ -122,6 +122,21 @@ class AuthAndEndpointsTests(unittest.TestCase):
         me_after = client.get("/auth/me")
         self.assertIsNone(me_after.json()["user"])
 
+    def test_custom_login_endpoint(self):
+        login_res = client.post("/auth/custom-login", data={"name": "Ankit Kumar", "email": "ankit@example.com"})
+        self.assertEqual(login_res.status_code, 200)
+        data = login_res.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["user"]["name"], "Ankit Kumar")
+        self.assertEqual(data["user"]["email"], "ankit@example.com")
+
+        # Verify auth/me preserves custom login
+        me_res = client.get("/auth/me")
+        self.assertEqual(me_res.status_code, 200)
+        self.assertEqual(me_res.json()["user"]["name"], "Ankit Kumar")
+
+        client.post("/auth/logout")
+
     def test_analyze_rejects_gibberish_with_400(self):
         files = {"file": ("bad_resume.txt", io.BytesIO(b"asdfghjkl zxcvbnm qwertyuiop asdfghjk"), "text/plain")}
         res = client.post("/api/analyze", files=files, data={"jd": "", "top_n": 5})

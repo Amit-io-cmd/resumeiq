@@ -97,16 +97,62 @@ function resetPreviousResults() {
   }
 }
 
-// Navigation Tabs
-$$('.nav-tab').forEach(btn => {
+// ============================================================================
+// Left-Hand Sidebar Navigation & Mobile Drawer
+// ============================================================================
+
+function openSidebar() {
+  const sidebar = $('#sidebar');
+  const backdrop = $('#sidebar-backdrop');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.hidden = false;
+}
+
+function closeSidebar() {
+  const sidebar = $('#sidebar');
+  const backdrop = $('#sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.hidden = true;
+}
+
+if ($('#sidebar-toggle')) $('#sidebar-toggle').onclick = openSidebar;
+if ($('#sidebar-close')) $('#sidebar-close').onclick = closeSidebar;
+if ($('#sidebar-backdrop')) $('#sidebar-backdrop').onclick = closeSidebar;
+
+// Sidebar navigation link clicks
+$$('.sidebar-nav-item').forEach(btn => {
   btn.onclick = () => {
-    $$('.nav-tab').forEach(t => {
-      const isCurrent = t === btn;
-      t.classList.toggle('on', isCurrent);
-      t.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
-    });
-    $('#cand').hidden = btn.dataset.tab !== 'cand';
-    $('#rec').hidden = btn.dataset.tab !== 'rec';
+    $$('.sidebar-nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const view = btn.dataset.view; // 'cand' or 'rec'
+    const sectionId = btn.dataset.section;
+    const label = btn.querySelector('span') ? btn.querySelector('span').textContent : 'Diagnostic';
+
+    if (view === 'rec') {
+      $('#cand').hidden = true;
+      $('#rec').hidden = false;
+      if ($('#topbar-title')) $('#topbar-title').textContent = 'Recruiter Cohort Screening';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      $('#cand').hidden = false;
+      $('#rec').hidden = true;
+      if ($('#topbar-title')) $('#topbar-title').textContent = label;
+
+      if (sectionId) {
+        const targetEl = document.getElementById(sectionId);
+        if (targetEl) {
+          if (sectionId !== 'section-diagnostic' && $('#out') && $('#out').hidden) {
+            say('#msg', `Load your resume to unlock full ${label} analysis.`);
+          }
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+
+    closeSidebar();
   };
 });
 
@@ -161,7 +207,10 @@ $('#btn-top-10').onclick = () => {
   loadPredictedRoles(10);
 };
 
-// File Upload Handling with Immediate Resume Detection
+// ============================================================================
+// File Upload & Instant Non-Resume Detection
+// ============================================================================
+
 const setFile = async file => {
   resetPreviousResults();
   if (!file) return;
@@ -169,7 +218,7 @@ const setFile = async file => {
   const ext = (file.name.slice(file.name.lastIndexOf('.')) || '').toLowerCase();
   const allowed = ['.pdf', '.docx', '.txt'];
 
-  // Check file extension first
+  // 1. Extension Guard
   if (!allowed.includes(ext)) {
     currentFile = null;
     $('#fname').textContent = `${file.name} (Not a resume)`;
@@ -182,7 +231,7 @@ const setFile = async file => {
     return;
   }
 
-  // File extension is valid: scan file content immediately to detect if it's a resume
+  // 2. Scan file content immediately
   $('#fname').textContent = file.name;
   say('#msg', 'Scanning uploaded file structure...');
   hideValidationError();
@@ -206,10 +255,9 @@ const setFile = async file => {
     // Valid resume verified!
     currentFile = file;
     hideValidationError();
-    say('#msg', 'Resume verified. Click "Run Diagnostic" to start.', false);
+    say('#msg', 'Resume verified. Click "Run Diagnostic" to analyze.', false);
     $('#go').disabled = false;
   } catch (err) {
-    // Fallback if pre-validation call fails: still allow running diagnostic
     currentFile = file;
     say('#msg', 'Resume file ready for diagnostic.', false);
     $('#go').disabled = false;
@@ -698,31 +746,74 @@ $('#rgo').onclick = async () => {
 };
 
 // ============================================================================
-// Google OAuth & Session Management
+// Sign-In Modal, Google OAuth & Account Management
 // ============================================================================
 
+function openAuthModal() {
+  const backdrop = $('#auth-modal-backdrop');
+  if (backdrop) backdrop.hidden = false;
+  const msgEl = $('#modal-auth-msg');
+  if (msgEl) {
+    msgEl.textContent = '';
+    msgEl.className = 'modal-auth-msg';
+  }
+}
+
+function closeAuthModal() {
+  const backdrop = $('#auth-modal-backdrop');
+  if (backdrop) backdrop.hidden = true;
+}
+
+// Open modal triggers
+$$('.btn-open-login').forEach(btn => {
+  btn.onclick = openAuthModal;
+});
+
+if ($('#auth-modal-close')) $('#auth-modal-close').onclick = closeAuthModal;
+if ($('#auth-modal-backdrop')) {
+  $('#auth-modal-backdrop').onclick = e => {
+    if (e.target === $('#auth-modal-backdrop')) closeAuthModal();
+  };
+}
+
+// Render Authenticated User State in UI
 function renderAuthUser(user, history = []) {
   currentUser = user;
-  $('#btn-google-login').hidden = true;
-  $('#user-chip').hidden = false;
-
   const avatarSrc = user.avatar_url || getDefaultAvatar(user.name);
-  $('#user-avatar').src = avatarSrc;
-  $('#user-name').textContent = user.name || 'User';
 
-  $('#drawer-avatar').src = avatarSrc;
-  $('#drawer-user-name').textContent = user.name || 'User';
-  $('#drawer-user-email').textContent = user.email || '';
+  // 1. Sidebar views
+  if ($('#sidebar-guest-view')) $('#sidebar-guest-view').hidden = true;
+  if ($('#sidebar-user-view')) $('#sidebar-user-view').hidden = false;
+  if ($('#sidebar-user-avatar')) $('#sidebar-user-avatar').src = avatarSrc;
+  if ($('#sidebar-user-name')) $('#sidebar-user-name').textContent = user.name || 'User';
+  if ($('#sidebar-user-email')) $('#sidebar-user-email').textContent = user.email || '';
+
+  // 2. Topbar views
+  if ($('#topbar-login-btn')) $('#topbar-login-btn').hidden = true;
+  if ($('#topbar-user-chip')) $('#topbar-user-chip').hidden = false;
+  if ($('#topbar-user-avatar')) $('#topbar-user-avatar').src = avatarSrc;
+  if ($('#topbar-user-name')) $('#topbar-user-name').textContent = user.name || 'User';
+
+  // 3. User Drawer
+  if ($('#drawer-avatar')) $('#drawer-avatar').src = avatarSrc;
+  if ($('#drawer-user-name')) $('#drawer-user-name').textContent = user.name || 'User';
+  if ($('#drawer-user-email')) $('#drawer-user-email').textContent = user.email || '';
 
   renderDrawerHistory(history);
 }
 
+// Render Guest State
 function renderGuestUser() {
   currentUser = null;
-  $('#btn-google-login').hidden = false;
-  $('#user-chip').hidden = true;
-  $('#user-drawer').hidden = true;
-  $('#drawer-backdrop').hidden = true;
+
+  if ($('#sidebar-guest-view')) $('#sidebar-guest-view').hidden = false;
+  if ($('#sidebar-user-view')) $('#sidebar-user-view').hidden = true;
+
+  if ($('#topbar-login-btn')) $('#topbar-login-btn').hidden = false;
+  if ($('#topbar-user-chip')) $('#topbar-user-chip').hidden = true;
+
+  if ($('#user-drawer')) $('#user-drawer').hidden = true;
+  if ($('#drawer-backdrop')) $('#drawer-backdrop').hidden = true;
 }
 
 function renderDrawerHistory(history) {
@@ -759,19 +850,157 @@ async function fetchUserHistory() {
   }
 }
 
+// Open and Close History Drawer
+function openHistoryDrawer() {
+  if ($('#user-drawer')) $('#user-drawer').hidden = false;
+  if ($('#drawer-backdrop')) $('#drawer-backdrop').hidden = false;
+  fetchUserHistory();
+}
+
+function closeHistoryDrawer() {
+  if ($('#user-drawer')) $('#user-drawer').hidden = true;
+  if ($('#drawer-backdrop')) $('#drawer-backdrop').hidden = true;
+}
+
+if ($('#btn-sidebar-history')) $('#btn-sidebar-history').onclick = openHistoryDrawer;
+if ($('#topbar-user-chip')) $('#topbar-user-chip').onclick = openHistoryDrawer;
+if ($('#drawer-close')) $('#drawer-close').onclick = closeHistoryDrawer;
+if ($('#drawer-backdrop')) $('#drawer-backdrop').onclick = closeHistoryDrawer;
+
+// Sign Out Action
+async function handleLogout() {
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+    renderGuestUser();
+    say('#msg', 'Signed out successfully.');
+  } catch (err) {
+    console.error('Logout error:', err);
+  }
+}
+
+if ($('#btn-sidebar-logout')) $('#btn-sidebar-logout').onclick = handleLogout;
+if ($('#btn-logout')) $('#btn-logout').onclick = handleLogout;
+
+// Modal Google Login Button
+if ($('#modal-btn-google')) {
+  $('#modal-btn-google').onclick = async () => {
+    const msgEl = $('#modal-auth-msg');
+
+    if (authConfig.dev_mode || !authConfig.google_client_id) {
+      // Local dev mode fallback login
+      if (msgEl) {
+        msgEl.textContent = 'Connecting with local dev credentials...';
+        msgEl.className = 'modal-auth-msg';
+      }
+      try {
+        const res = await fetch('/auth/dev-login', { method: 'POST' });
+        const data = await res.json();
+        if (data.user) {
+          renderAuthUser(data.user, []);
+          closeAuthModal();
+          say('#msg', `Signed in as ${data.user.name} (Local Account)`);
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.textContent = 'Sign in error: ' + err.message;
+          msgEl.className = 'modal-auth-msg err';
+        }
+      }
+    } else {
+      // Production Google OAuth
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.prompt();
+      } else {
+        if (msgEl) {
+          msgEl.textContent = 'Google API is initializing. You can use instant demo login below.';
+          msgEl.className = 'modal-auth-msg';
+        }
+      }
+    }
+  };
+}
+
+// Modal Custom Email / Name Login Form
+if ($('#custom-login-form')) {
+  $('#custom-login-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = $('#login-name').value.trim();
+    const email = $('#login-email').value.trim();
+    const msgEl = $('#modal-auth-msg');
+
+    if (!email) {
+      if (msgEl) {
+        msgEl.textContent = 'Please enter your email.';
+        msgEl.className = 'modal-auth-msg err';
+      }
+      return;
+    }
+
+    if (msgEl) {
+      msgEl.textContent = 'Signing in...';
+      msgEl.className = 'modal-auth-msg';
+    }
+
+    const fd = new FormData();
+    fd.append('name', name || 'Engineer');
+    fd.append('email', email);
+
+    try {
+      const res = await fetch('/auth/custom-login', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.user) {
+        renderAuthUser(data.user, []);
+        closeAuthModal();
+        say('#msg', `Welcome, ${data.user.name}!`);
+      } else {
+        throw new Error('Authentication failed.');
+      }
+    } catch (err) {
+      if (msgEl) {
+        msgEl.textContent = err.message || 'Login failed.';
+        msgEl.className = 'modal-auth-msg err';
+      }
+    }
+  };
+}
+
+// Modal Instant Demo Login Button
+if ($('#modal-btn-dev-login')) {
+  $('#modal-btn-dev-login').onclick = async () => {
+    const msgEl = $('#modal-auth-msg');
+    if (msgEl) {
+      msgEl.textContent = 'Logging in with demo account...';
+      msgEl.className = 'modal-auth-msg';
+    }
+    try {
+      const res = await fetch('/auth/dev-login', { method: 'POST' });
+      const data = await res.json();
+      if (data.user) {
+        renderAuthUser(data.user, []);
+        closeAuthModal();
+        say('#msg', `Signed in as ${data.user.name} (Instant Access)`);
+      }
+    } catch (err) {
+      if (msgEl) {
+        msgEl.textContent = 'Demo login error: ' + err.message;
+        msgEl.className = 'modal-auth-msg err';
+      }
+    }
+  };
+}
+
+// Initialize Auth
 async function initAuth() {
   try {
-    // 1. Fetch server auth configuration
     const configRes = await fetch('/auth/config');
     authConfig = await configRes.json();
 
     if (authConfig.dev_mode) {
-      $('#google-btn-text').textContent = 'Dev Login (Local Mode)';
+      if ($('#modal-google-text')) $('#modal-google-text').textContent = 'Sign In with Google (Local Dev Mode)';
     } else {
-      $('#google-btn-text').textContent = 'Continue with Google';
+      if ($('#modal-google-text')) $('#modal-google-text').textContent = 'Continue with Google';
     }
 
-    // 2. Fetch current session user
     const meRes = await fetch('/auth/me');
     const meData = await meRes.json();
     if (meData.user) {
@@ -785,66 +1014,7 @@ async function initAuth() {
   }
 }
 
-// Google Login / Dev Login Click Handler
-$('#btn-google-login').onclick = async () => {
-  if (authConfig.dev_mode || !authConfig.google_client_id) {
-    // Local dev mode fallback login
-    say('#msg', 'Authenticating with local dev credentials...');
-    try {
-      const res = await fetch('/auth/dev-login', { method: 'POST' });
-      const data = await res.json();
-      if (data.user) {
-        renderAuthUser(data.user, []);
-        say('#msg', `Signed in as ${data.user.name} (Local Dev Mode)`);
-      }
-    } catch (err) {
-      say('#msg', 'Dev login error: ' + err.message, true);
-    }
-  } else {
-    // Production Google OAuth
-    say('#msg', 'Connecting to Google OAuth...');
-    // If Google Identity Services client is loaded
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-      window.google.accounts.id.prompt();
-    } else {
-      say('#msg', 'Google Sign-In API is initializing. Please try again in a moment.');
-    }
-  }
-};
-
-// User Profile Chip Click (Toggle Drawer)
-$('#user-chip').onclick = () => {
-  const isHidden = $('#user-drawer').hidden;
-  $('#user-drawer').hidden = !isHidden;
-  $('#drawer-backdrop').hidden = !isHidden;
-  if (isHidden) {
-    fetchUserHistory();
-  }
-};
-
-// Close Drawer Buttons
-$('#drawer-close').onclick = () => {
-  $('#user-drawer').hidden = true;
-  $('#drawer-backdrop').hidden = true;
-};
-
-$('#drawer-backdrop').onclick = () => {
-  $('#user-drawer').hidden = true;
-  $('#drawer-backdrop').hidden = true;
-};
-
-// Sign Out
-$('#btn-logout').onclick = async () => {
-  try {
-    await fetch('/auth/logout', { method: 'POST' });
-    renderGuestUser();
-    say('#msg', 'Signed out successfully.');
-  } catch (err) {
-    console.error('Logout error:', err);
-  }
-};
-
-// Initialize Auth & App on Page Load
+// Initialize on Load
 document.addEventListener('DOMContentLoaded', () => {
   initAuth();
 });

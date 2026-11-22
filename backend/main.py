@@ -196,6 +196,29 @@ def dev_login(response: Response):
     return {"success": True, "user": user, "dev_mode": True}
 
 
+@app.post("/auth/custom-login")
+def custom_login(response: Response, name: str = Form(""), email: str = Form("")):
+    clean_name = name.strip() or "Engineer"
+    clean_email = email.strip() or "engineer@resumeiq.local"
+    google_sub = f"account_{hashlib.sha256(clean_email.encode('utf-8')).hexdigest()[:16]}"
+    user = db.upsert_google_user(
+        google_sub=google_sub,
+        email=clean_email,
+        name=clean_name,
+        avatar_url=""
+    )
+    session_token = sign_session_token(user["id"])
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=30 * 86400,
+        path="/"
+    )
+    return {"success": True, "user": user, "dev_mode": True}
+
+
 @app.get("/auth/me")
 def auth_me(request: Request):
     user = get_current_user(request)
