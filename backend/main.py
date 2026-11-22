@@ -264,6 +264,9 @@ async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form
     missing_skills = target_job.get("missing", []) if target_job else []
     study_links = E.get_study_links_for_skills(missing_skills[:8])
     predicted_roles = E.predict_top_roles(text, skills, years, db.jobs(), top_n=top_n)
+    portfolio_projects = E.get_portfolio_project_roadmaps(missing_skills[:6])
+    official_docs = E.get_official_docs_and_certs(missing_skills[:6])
+    salary_estimate = E.estimate_salary_range(target_job["title"] if target_job else "Software Engineer", years, skills)
 
     user = get_current_user(request)
     user_id = user["id"] if user else None
@@ -272,6 +275,8 @@ async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form
     return {"resume_id": rid, "text": text, "spans": spans, "skills": sorted(skills), "years": years,
             "ats": {"score": ats_score, "tips": tips, "categories": categories}, "matches": matches[:8], "custom": custom,
             "study_links": study_links, "predicted_roles": predicted_roles,
+            "portfolio_projects": portfolio_projects, "official_docs": official_docs,
+            "salary_estimate": salary_estimate,
             "valid_resume": True, "warnings": warnings}
 
 
@@ -363,6 +368,88 @@ async def study_links(skills: str = Form(...)):
     if not skill_list:
         return {"study_links": []}
     return {"study_links": E.get_study_links_for_skills(skill_list[:12])}
+
+
+# ---------- Career Pathing & Up-skilling Roadmaps ----------
+@app.post("/api/skills/roadmap")
+def skill_roadmap(skills: str = Form(...)):
+    skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+    projects = E.get_portfolio_project_roadmaps(skill_list[:8])
+    docs = E.get_official_docs_and_certs(skill_list[:8])
+    return {"portfolio_projects": projects, "official_docs": docs}
+
+
+@app.get("/api/skills/track")
+def get_tracked_skills(request: Request):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    return {"tracked_skills": db.get_skill_trackers(user_id)}
+
+
+@app.post("/api/skills/track")
+def save_tracked_skill(request: Request, skill: str = Form(...), status: str = Form("to_learn"), notes: str = Form("")):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    item = db.upsert_skill_tracker(user_id, skill, status, notes)
+    return {"success": True, "item": item}
+
+
+@app.delete("/api/skills/track")
+def delete_tracked_skill(request: Request, skill: str = Form(...)):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    db.delete_skill_tracker(user_id, skill)
+    return {"success": True}
+
+
+# ---------- Compensation & Salary Estimator ----------
+@app.post("/api/salary/estimate")
+def estimate_salary(role_title: str = Form("Software Engineer"), years: float = Form(3.0), skills: str = Form("")):
+    skill_set = {s.strip() for s in skills.split(",") if s.strip()}
+    return E.estimate_salary_range(role_title, years, skill_set)
+
+
+# ---------- Job Application Tracking (Kanban CRM) ----------
+@app.get("/api/crm/jobs")
+def get_crm_jobs(request: Request):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    jobs = db.get_job_applications(user_id)
+    stages = {"saved": [], "applied": [], "interviewing": [], "offer": []}
+    for j in jobs:
+        st = j.get("stage", "saved")
+        if st in stages:
+            stages[st].append(j)
+        else:
+            stages["saved"].append(j)
+    return {"jobs": jobs, "stages": stages}
+
+
+@app.post("/api/crm/jobs")
+def create_crm_job(request: Request, role_title: str = Form(...), company: str = Form(...),
+                   location: str = Form("Remote"), salary_range: str = Form("$95k - $135k"),
+                   match_score: float = Form(0), stage: str = Form("saved"),
+                   url: str = Form(""), notes: str = Form("")):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    job = db.add_job_application(user_id, role_title, company, location, salary_range, match_score, stage, url, notes)
+    return {"success": True, "job": job}
+
+
+@app.patch("/api/crm/jobs/{app_id}")
+def update_crm_stage(app_id: int, request: Request, stage: str = Form(...), notes: Optional[str] = Form(None)):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    updated = db.update_job_application_stage(app_id, user_id, stage, notes)
+    return {"success": True, "job": updated}
+
+
+@app.delete("/api/crm/jobs/{app_id}")
+def delete_crm_job(app_id: int, request: Request):
+    user = get_current_user(request)
+    user_id = user["id"] if user else 0
+    db.delete_job_application(app_id, user_id)
+    return {"success": True}
 
 
 @app.get("/api/history")

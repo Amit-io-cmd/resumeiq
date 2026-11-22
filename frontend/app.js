@@ -88,8 +88,13 @@ function resetPreviousResults() {
   if ($('#gaps-count-badge')) $('#gaps-count-badge').textContent = '0 Gaps';
   if ($('#gaps-tags-summary')) $('#gaps-tags-summary').innerHTML = '';
 
-  // Clear study hub
+  // Clear study hub, portfolio projects, docs, and skill tracker
   if ($('#study-links-container')) $('#study-links-container').innerHTML = '';
+  if ($('#portfolio-projects-container')) $('#portfolio-projects-container').innerHTML = '';
+  if ($('#official-docs-container')) $('#official-docs-container').innerHTML = '';
+  if ($('#skill-tracker-container')) $('#skill-tracker-container').innerHTML = '';
+  if ($('#tracked-skills-count')) $('#tracked-skills-count').textContent = '0';
+  if ($('#tracker-summary-badge')) $('#tracker-summary-badge').textContent = '0 Tracked';
 
   // Clear auto-predicted roles
   if ($('#predicted-roles-grid')) $('#predicted-roles-grid').innerHTML = '';
@@ -192,6 +197,10 @@ function switchPhase(phaseId) {
   // 5. Special phase triggers
   if (phaseId === 'insights') {
     loadInsights();
+  } else if (phaseId === 'crm') {
+    loadCrmJobs();
+  } else if (phaseId === 'study-hub') {
+    loadTrackedSkills();
   }
 
   // 6. Scroll smoothly to top
@@ -585,12 +594,47 @@ function renderDashboard() {
   docHtml += esc(currentResumeText.slice(cursor));
   $('#doc').innerHTML = docHtml;
 
-  // 4. Missing Skills Study Hub
+  // 4. Missing Skills Study Hub, Portfolio Projects, Docs, and Skill Tracker
   renderStudyHub(analysisData.study_links || []);
+  renderPortfolioProjects(analysisData.portfolio_projects || []);
+  renderOfficialDocs(analysisData.official_docs || []);
+  loadTrackedSkills();
 
   // 5. Auto-Predicted Roles
   renderPredictedRoles(analysisData.predicted_roles || []);
 }
+
+// ============================================================================
+// Phase 4: Upskilling Roadmaps Subtabs & Renderers
+// ============================================================================
+
+function switchRoadmapSubtab(tabName) {
+  const tabs = ['youtube', 'projects', 'docs', 'tracker'];
+  tabs.forEach(t => {
+    const btn = $(`#subtab-${t}`);
+    const panel = $(`#panel-${t}`);
+    if (btn) btn.classList.toggle('on', t === tabName);
+    if (panel) {
+      if (t === tabName) {
+        panel.removeAttribute('hidden');
+        panel.style.display = 'block';
+        panel.classList.add('active');
+      } else {
+        panel.setAttribute('hidden', '');
+        panel.style.display = 'none';
+        panel.classList.remove('active');
+      }
+    }
+  });
+  if (tabName === 'tracker') {
+    loadTrackedSkills();
+  }
+}
+
+if ($('#subtab-youtube')) $('#subtab-youtube').onclick = () => switchRoadmapSubtab('youtube');
+if ($('#subtab-projects')) $('#subtab-projects').onclick = () => switchRoadmapSubtab('projects');
+if ($('#subtab-docs')) $('#subtab-docs').onclick = () => switchRoadmapSubtab('docs');
+if ($('#subtab-tracker')) $('#subtab-tracker').onclick = () => switchRoadmapSubtab('tracker');
 
 // Render Missing Skills YouTube Study Hub
 function renderStudyHub(links) {
@@ -610,14 +654,211 @@ function renderStudyHub(links) {
         <h4 class="study-title">${esc(item.title)}</h4>
         <div class="study-channel">Channel: ${esc(item.channel)}</div>
       </div>
-      <a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="study-action-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="5 3 19 12 5 21 5 3"></polygon>
-        </svg>
-        Watch Tutorial
-      </a>
+      <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+        <div class="quick-track-buttons">
+          <button class="btn btn-sm btn-ghost btn-track-skill" data-skill="${esc(item.skill)}" data-status="to_learn" type="button" title="Track in roadmap">
+            🎯 To Learn
+          </button>
+          <button class="btn btn-sm btn-ghost btn-track-skill" data-skill="${esc(item.skill)}" data-status="in_progress" type="button" title="Mark as currently learning">
+            ⚡ In Progress
+          </button>
+        </div>
+        <a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="study-action-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Watch Tutorial
+        </a>
+      </div>
     </div>
   `).join('');
+
+  // Wire quick-track buttons
+  container.querySelectorAll('.btn-track-skill').forEach(btn => {
+    btn.onclick = () => {
+      const skill = btn.dataset.skill;
+      const status = btn.dataset.status;
+      setSkillStatus(skill, status);
+      btn.style.background = 'var(--accent-glow)';
+      btn.style.borderColor = 'var(--accent)';
+      setTimeout(() => {
+        btn.style.background = '';
+        btn.style.borderColor = '';
+      }, 1500);
+    };
+  });
+}
+
+// Render Hands-on Portfolio Projects
+function renderPortfolioProjects(projects) {
+  const container = $('#portfolio-projects-container');
+  if (!container) return;
+  if (!projects || !projects.length) {
+    container.innerHTML = `<p class="card-hint">No specific project roadmaps required for this role profile.</p>`;
+    return;
+  }
+
+  container.innerHTML = projects.map((p, idx) => {
+    const stackPills = (p.tech_stack || []).map(s => `<span class="project-tag">${esc(s)}</span>`).join('');
+    const deliverablesList = (p.deliverables || []).map(d => `<li>${esc(d)}</li>`).join('');
+
+    return `
+      <div class="project-card">
+        <div class="project-header">
+          <h4 class="project-title">${esc(p.title)}</h4>
+          <span class="project-difficulty difficulty-${(p.difficulty || 'intermediate').toLowerCase()}">${esc(p.difficulty || 'Intermediate')}</span>
+        </div>
+        <div class="project-skill-focus">Primary Skill Target: <strong>${esc(p.skill)}</strong></div>
+        <p class="project-desc">${esc(p.description)}</p>
+        <div class="project-deliverables">
+          <strong>Architecture Deliverables:</strong>
+          <ul>${deliverablesList}</ul>
+        </div>
+        <div class="project-tags-group">${stackPills}</div>
+        <div class="project-resume-bullet">
+          <div class="resume-bullet-label">Resume-Ready Bullet Point:</div>
+          <div class="resume-bullet-text">"${esc(p.resume_bullet)}"</div>
+          <button class="btn btn-sm btn-ghost btn-copy-bullet" data-bullet="${esc(p.resume_bullet)}" type="button">
+            📋 Copy Resume Bullet
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire copy bullet buttons
+  container.querySelectorAll('.btn-copy-bullet').forEach(btn => {
+    btn.onclick = () => {
+      const bullet = btn.dataset.bullet;
+      navigator.clipboard.writeText(bullet).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied to Clipboard!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    };
+  });
+}
+
+// Render Official Documentation & Certifications
+function renderOfficialDocs(docs) {
+  const container = $('#official-docs-container');
+  if (!container) return;
+  if (!docs || !docs.length) {
+    container.innerHTML = `<p class="card-hint">No documentation recommendations for current skills.</p>`;
+    return;
+  }
+
+  container.innerHTML = docs.map(d => `
+    <div class="doc-card">
+      <div class="doc-meta-top">
+        <span class="doc-badge-type">${esc(d.type || 'Official Documentation')}</span>
+        <span class="doc-badge-authority">${esc(d.authority || 'Authoritative')}</span>
+      </div>
+      <h4 class="doc-title">${esc(d.title)}</h4>
+      <p class="doc-summary">${esc(d.summary)}</p>
+      <div class="doc-footer">
+        <span class="doc-skill-tag">Skill: ${esc(d.skill)}</span>
+        <a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn">
+          Visit Resource
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        </a>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Interactive Skill Gap Tracker Logic
+async function loadTrackedSkills() {
+  try {
+    const res = await fetch('/api/skills/track');
+    const data = await res.json();
+    const skills = data.tracked_skills || [];
+    renderTrackedSkills(skills);
+
+    const count = skills.length;
+    if ($('#tracked-skills-count')) $('#tracked-skills-count').textContent = count;
+    if ($('#tracker-summary-badge')) $('#tracker-summary-badge').textContent = `${count} Tracked`;
+  } catch (err) {
+    console.error('Failed to load tracked skills:', err);
+  }
+}
+
+function renderTrackedSkills(skills) {
+  const container = $('#skill-tracker-container');
+  if (!container) return;
+  if (!skills || !skills.length) {
+    container.innerHTML = `
+      <div class="empty-tracker-box">
+        <p class="card-hint">No skills tracked in your roadmap yet. Click "🎯 To Learn" on any video tutorial card or missing skill pill to add it here!</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = skills.map(item => {
+    const st = item.status || 'to_learn';
+    const statusLabels = { to_learn: 'To Learn', in_progress: 'In Progress', mastered: 'Mastered' };
+    const statusClasses = { to_learn: 'status-to-learn', in_progress: 'status-in-progress', mastered: 'status-mastered' };
+
+    return `
+      <div class="skill-tracker-item">
+        <div class="tracker-item-left">
+          <strong class="tracker-skill-name">${esc(item.skill)}</strong>
+          <span class="tracker-status-tag ${statusClasses[st]}">${statusLabels[st]}</span>
+          <span class="tracker-updated-date">${esc(item.updated_at ? item.updated_at.slice(0, 10) : '')}</span>
+        </div>
+        <div class="tracker-item-actions">
+          <div class="status-selector-group">
+            <button class="status-select-btn ${st === 'to_learn' ? 'active' : ''}" data-skill="${esc(item.skill)}" data-status="to_learn" type="button">To Learn</button>
+            <button class="status-select-btn ${st === 'in_progress' ? 'active' : ''}" data-skill="${esc(item.skill)}" data-status="in_progress" type="button">In Progress</button>
+            <button class="status-select-btn ${st === 'mastered' ? 'active' : ''}" data-skill="${esc(item.skill)}" data-status="mastered" type="button">Mastered</button>
+          </div>
+          <button class="btn-delete-tracker" data-skill="${esc(item.skill)}" type="button" title="Remove skill">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire status buttons
+  container.querySelectorAll('.status-select-btn').forEach(btn => {
+    btn.onclick = () => {
+      const skill = btn.dataset.skill;
+      const status = btn.dataset.status;
+      setSkillStatus(skill, status);
+    };
+  });
+
+  // Wire delete buttons
+  container.querySelectorAll('.btn-delete-tracker').forEach(btn => {
+    btn.onclick = () => {
+      const skill = btn.dataset.skill;
+      deleteSkillStatus(skill);
+    };
+  });
+}
+
+async function setSkillStatus(skill, status, notes = '') {
+  const fd = new FormData();
+  fd.append('skill', skill);
+  fd.append('status', status);
+  fd.append('notes', notes);
+  try {
+    await fetch('/api/skills/track', { method: 'POST', body: fd });
+    loadTrackedSkills();
+  } catch (err) {
+    console.error('Error saving tracked skill:', err);
+  }
+}
+
+async function deleteSkillStatus(skill) {
+  try {
+    const fd = new FormData();
+    fd.append('skill', skill);
+    await fetch('/api/skills/track', { method: 'DELETE', body: fd });
+    loadTrackedSkills();
+  } catch (err) {
+    console.error('Error deleting tracked skill:', err);
+  }
 }
 
 // Render Predicted Roles
@@ -668,6 +909,13 @@ function renderPredictedRoles(roles) {
           const res = await postForm('/api/skills/study', fd);
           renderStudyHub(res.study_links || []);
         } catch (_) {}
+
+        // Also fetch project roadmaps for target role's missing skills
+        try {
+          const roadmapRes = await postForm('/api/skills/roadmap', fd);
+          renderPortfolioProjects(roadmapRes.portfolio_projects || []);
+          renderOfficialDocs(roadmapRes.official_docs || []);
+        } catch (_) {}
       }
 
       loadOpenRoles(targetTitle);
@@ -692,7 +940,12 @@ async function loadPredictedRoles(topN) {
   }
 }
 
-// Fetch Matching Open Roles from Free APIs
+// ============================================================================
+// Phase 5: Matching Open Roles (Live Remote/On-site from Free APIs)
+// ============================================================================
+
+let currentOpenRolesList = [];
+
 async function loadOpenRoles(query) {
   const container = $('#open-roles-grid');
   container.innerHTML = `<p class="card-hint">Fetching matching open positions from free job feeds (Remotive / Arbeitnow / Local cache)...</p>`;
@@ -703,10 +956,42 @@ async function loadOpenRoles(query) {
 
   try {
     const res = await postForm('/api/roles/open', fd);
-    renderOpenRoles(res.open_roles || []);
+    currentOpenRolesList = res.open_roles || [];
+    applyJobFilters();
   } catch (err) {
     container.innerHTML = `<p class="card-hint">Could not connect to external job feed. Displaying verified local database roles.</p>`;
   }
+}
+
+function applyJobFilters() {
+  const keyword = ($('#filter-job-keyword') && $('#filter-job-keyword').value.trim().toLowerCase()) || '';
+  const remoteType = ($('#filter-job-remote') && $('#filter-job-remote').value) || 'all';
+
+  let filtered = currentOpenRolesList;
+  if (keyword) {
+    filtered = filtered.filter(j => {
+      const titleMatch = (j.title || '').toLowerCase().includes(keyword);
+      const companyMatch = (j.company || '').toLowerCase().includes(keyword);
+      const skillMatch = (j.matched || []).some(s => s.toLowerCase().includes(keyword)) ||
+                         (j.missing || []).some(s => s.toLowerCase().includes(keyword));
+      return titleMatch || companyMatch || skillMatch;
+    });
+  }
+
+  if (remoteType === 'remote') {
+    filtered = filtered.filter(j => (j.location || '').toLowerCase().includes('remote'));
+  } else if (remoteType === 'onsite') {
+    filtered = filtered.filter(j => !(j.location || '').toLowerCase().includes('remote'));
+  }
+
+  renderOpenRoles(filtered);
+}
+
+if ($('#filter-job-keyword')) {
+  $('#filter-job-keyword').addEventListener('input', applyJobFilters);
+}
+if ($('#filter-job-remote')) {
+  $('#filter-job-remote').addEventListener('change', applyJobFilters);
 }
 
 function renderOpenRoles(roles) {
@@ -716,9 +1001,10 @@ function renderOpenRoles(roles) {
     return;
   }
 
-  container.innerHTML = roles.map(j => {
+  container.innerHTML = roles.map((j, idx) => {
     const matchedPills = (j.matched || []).slice(0, 4).map(s => `<span class="skill-tag-matched">${esc(s)}</span>`).join('');
     const missingPills = (j.missing || []).slice(0, 3).map(s => `<span class="skill-tag-missing">${esc(s)}</span>`).join('');
+    const salaryTag = j.salary_range ? `<span class="job-salary-tag">${esc(j.salary_range)}</span>` : '<span class="job-salary-tag">$105k - $145k / yr</span>';
 
     return `
       <div class="open-job-card">
@@ -732,6 +1018,9 @@ function renderOpenRoles(roles) {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
             ${esc(j.location || 'Remote')}
           </div>
+          <div class="open-job-salary-row">
+            ${salaryTag}
+          </div>
           <div class="open-job-skills-block">
             <div class="skills-pill-group">
               ${matchedPills}
@@ -741,14 +1030,248 @@ function renderOpenRoles(roles) {
         </div>
         <div class="open-job-footer">
           <span class="open-job-source">Source: ${esc(j.source)}</span>
-          <a href="${esc(j.url)}" target="_blank" rel="noopener noreferrer" class="open-job-link">
-            View Listing
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          </a>
+          <div class="open-job-action-buttons">
+            <button class="btn btn-sm btn-ghost btn-save-to-crm" data-idx="${idx}" type="button">
+              + Save to Pipeline
+            </button>
+            <a href="${esc(j.url)}" target="_blank" rel="noopener noreferrer" class="open-job-link">
+              View Listing
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
+          </div>
         </div>
       </div>
     `;
   }).join('');
+
+  // Wire Save to Pipeline buttons
+  container.querySelectorAll('.btn-save-to-crm').forEach(btn => {
+    btn.onclick = async () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const job = roles[idx];
+      if (!job) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        await saveJobToCrm({
+          role_title: job.title,
+          company: job.company,
+          location: job.location || 'Remote',
+          salary_range: job.salary_range || '$110k - $150k',
+          match_score: Math.round(job.score || 0),
+          stage: 'saved',
+          url: job.url || '',
+          notes: `Added from Live Job Feed. Source: ${job.source || 'Remotive'}`
+        });
+        btn.textContent = '✓ Saved in CRM!';
+        btn.style.background = 'var(--pass-glow)';
+        btn.style.borderColor = 'var(--pass)';
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '+ Save to Pipeline';
+        console.error('Failed to save to CRM:', err);
+      }
+    };
+  });
+}
+
+$('#refresh-open-roles').onclick = () => {
+  loadOpenRoles(getActiveRoleTitle());
+};
+
+// ============================================================================
+// Phase 6: Application Tracker CRM (Kanban Pipeline)
+// ============================================================================
+
+async function loadCrmJobs() {
+  try {
+    const res = await fetch('/api/crm/jobs');
+    const data = await res.json();
+    const stages = data.stages || { saved: [], applied: [], interviewing: [], offer: [] };
+
+    // Update top strip metric counters
+    if ($('#crm-stat-saved')) $('#crm-stat-saved').textContent = (stages.saved || []).length;
+    if ($('#crm-stat-applied')) $('#crm-stat-applied').textContent = (stages.applied || []).length;
+    if ($('#crm-stat-interviewing')) $('#crm-stat-interviewing').textContent = (stages.interviewing || []).length;
+    if ($('#crm-stat-offer')) $('#crm-stat-offer').textContent = (stages.offer || []).length;
+
+    // Update column badge counts
+    if ($('#count-col-saved')) $('#count-col-saved').textContent = (stages.saved || []).length;
+    if ($('#count-col-applied')) $('#count-col-applied').textContent = (stages.applied || []).length;
+    if ($('#count-col-interviewing')) $('#count-col-interviewing').textContent = (stages.interviewing || []).length;
+    if ($('#count-col-offer')) $('#count-col-offer').textContent = (stages.offer || []).length;
+
+    // Render cards into respective columns
+    renderKanbanColumn('#kanban-list-saved', stages.saved || [], 'saved');
+    renderKanbanColumn('#kanban-list-applied', stages.applied || [], 'applied');
+    renderKanbanColumn('#kanban-list-interviewing', stages.interviewing || [], 'interviewing');
+    renderKanbanColumn('#kanban-list-offer', stages.offer || [], 'offer');
+  } catch (err) {
+    console.error('Failed to load CRM jobs:', err);
+  }
+}
+
+function renderKanbanColumn(containerSelector, jobs, stageName) {
+  const container = $(containerSelector);
+  if (!container) return;
+
+  if (!jobs || !jobs.length) {
+    container.innerHTML = `<div class="kanban-empty-slot">No opportunities</div>`;
+    return;
+  }
+
+  const stageOptions = [
+    { value: 'saved', label: 'Saved' },
+    { value: 'applied', label: 'Applied' },
+    { value: 'interviewing', label: 'Interviewing' },
+    { value: 'offer', label: 'Offer' }
+  ];
+
+  container.innerHTML = jobs.map(j => {
+    const nextStages = stageOptions.filter(o => o.value !== stageName);
+    const stageButtons = nextStages.map(o => `
+      <button class="btn-stage-move" data-id="${j.id}" data-stage="${o.value}" type="button">
+        → ${o.label}
+      </button>
+    `).join('');
+
+    const linkHtml = j.url ? `
+      <a href="${esc(j.url)}" target="_blank" rel="noopener noreferrer" class="kanban-link">
+        Link ↗
+      </a>
+    ` : '';
+
+    return `
+      <div class="kanban-card" data-id="${j.id}">
+        <div class="kanban-card-top">
+          <strong class="kanban-role-title">${esc(j.role_title)}</strong>
+          <button class="kanban-btn-delete" data-id="${j.id}" type="button" title="Remove application">✕</button>
+        </div>
+        <div class="kanban-company-row">
+          <span>${esc(j.company)}</span>
+          <span class="kanban-loc">· ${esc(j.location || 'Remote')}</span>
+        </div>
+        <div class="kanban-meta-pills">
+          <span class="kanban-salary-pill">${esc(j.salary_range || '$110k - $150k')}</span>
+          ${j.match_score ? `<span class="kanban-score-pill">${Math.round(j.match_score)}% Match</span>` : ''}
+        </div>
+        ${j.notes ? `<p class="kanban-notes-preview">${esc(j.notes)}</p>` : ''}
+        <div class="kanban-card-actions">
+          <div class="kanban-stage-stepper">
+            ${stageButtons}
+          </div>
+          ${linkHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire stage move buttons
+  container.querySelectorAll('.btn-stage-move').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const newStage = btn.dataset.stage;
+      updateCrmJobStage(id, newStage);
+    };
+  });
+
+  // Wire delete buttons
+  container.querySelectorAll('.kanban-btn-delete').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      deleteCrmJob(id);
+    };
+  });
+}
+
+async function saveJobToCrm(jobData) {
+  const fd = new FormData();
+  Object.keys(jobData).forEach(k => fd.append(k, jobData[k]));
+  const res = await fetch('/api/crm/jobs', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Failed to save to CRM');
+  loadCrmJobs();
+}
+
+async function updateCrmJobStage(jobId, newStage) {
+  const fd = new FormData();
+  fd.append('stage', newStage);
+  try {
+    await fetch(`/api/crm/jobs/${jobId}`, { method: 'PATCH', body: fd });
+    loadCrmJobs();
+  } catch (err) {
+    console.error('Failed to update stage:', err);
+  }
+}
+
+async function deleteCrmJob(jobId) {
+  try {
+    await fetch(`/api/crm/jobs/${jobId}`, { method: 'DELETE' });
+    loadCrmJobs();
+  } catch (err) {
+    console.error('Failed to delete opportunity:', err);
+  }
+}
+
+// Add Opportunity Modal Handlers
+function openCrmModal() {
+  const backdrop = $('#crm-modal-backdrop');
+  if (backdrop) {
+    backdrop.removeAttribute('hidden');
+    backdrop.style.display = 'flex';
+  }
+}
+
+function closeCrmModal() {
+  const backdrop = $('#crm-modal-backdrop');
+  if (backdrop) {
+    backdrop.setAttribute('hidden', '');
+    backdrop.style.display = 'none';
+  }
+}
+
+if ($('#btn-open-crm-modal')) $('#btn-open-crm-modal').onclick = openCrmModal;
+if ($('#crm-modal-close')) $('#crm-modal-close').onclick = closeCrmModal;
+if ($('#crm-modal-cancel')) $('#crm-modal-cancel').onclick = closeCrmModal;
+if ($('#crm-modal-backdrop')) {
+  $('#crm-modal-backdrop').onclick = e => {
+    if (e.target === $('#crm-modal-backdrop')) closeCrmModal();
+  };
+}
+
+if ($('#form-add-crm-job')) {
+  $('#form-add-crm-job').onsubmit = async (e) => {
+    e.preventDefault();
+    const role_title = ($('#crm-input-title') && $('#crm-input-title').value.trim()) || '';
+    const company = ($('#crm-input-company') && $('#crm-input-company').value.trim()) || '';
+    const location = ($('#crm-input-location') && $('#crm-input-location').value.trim()) || 'Remote';
+    const stage = ($('#crm-input-stage') && $('#crm-input-stage').value) || 'saved';
+    const salary_range = ($('#crm-input-salary') && $('#crm-input-salary').value.trim()) || '$110k - $150k / yr';
+    const url = ($('#crm-input-url') && $('#crm-input-url').value.trim()) || '';
+    const notes = ($('#crm-input-notes') && $('#crm-input-notes').value.trim()) || '';
+
+    const btn = $('#btn-submit-crm-job');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving to Pipeline...';
+    }
+
+    try {
+      await saveJobToCrm({
+        role_title, company, location, stage, salary_range, url, notes, match_score: 0
+      });
+      closeCrmModal();
+      $('#form-add-crm-job').reset();
+    } catch (err) {
+      alert('Could not save opportunity: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Save to Pipeline';
+      }
+    }
+  };
 }
 
 $('#refresh-open-roles').onclick = () => {

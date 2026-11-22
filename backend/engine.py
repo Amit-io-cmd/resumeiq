@@ -1,5 +1,5 @@
 """NLP + ML engine: parsing, skill extraction, hybrid matching, ATS scoring, and interview prep."""
-import io, re, os, pathlib, logging, datetime
+import io, re, os, pathlib, logging, datetime, urllib.parse
 from typing import List, Dict, Tuple, Set, Any
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
@@ -1179,6 +1179,7 @@ def fetch_matching_open_roles(role_query: str, resume_text: str, resume_skills: 
         job_text = f"{item['title']}. {item['description']}"
         found_skills, _ = find_skills(job_text)
         m = match(resume_text, resume_skills, resume_years, job_text, found_skills, min_years=0)
+        salary_info = estimate_salary_range(item["title"], resume_years, set(found_skills))
         scored_jobs.append({
             "id": item["id"],
             "title": item["title"],
@@ -1190,9 +1191,406 @@ def fetch_matching_open_roles(role_query: str, resume_text: str, resume_skills: 
             "score": m["score"],
             "matched": m["matched"],
             "missing": m["missing"],
-            "breakdown": m["breakdown"]
+            "breakdown": m["breakdown"],
+            "salary_range": salary_info["formatted"],
+            "salary_info": salary_info
         })
 
     scored_jobs.sort(key=lambda j: -j["score"])
     return scored_jobs[:limit]
+
+
+# ---------- Career Pathing & Portfolio Project Generator ----------
+_PORTFOLIO_PROJECT_CATALOG = {
+    "docker": {
+        "title": "Production Microservices Containerization & Multi-Stage CI/CD Sandbox",
+        "summary": "Containerize a polyglot microservices stack using multi-stage Docker builds, non-root security contexts, and slim alpine bases.",
+        "tech_stack": ["Docker", "Docker Compose", "FastAPI", "PostgreSQL", "GitHub Actions"],
+        "deliverables": [
+            "Optimized Dockerfile size reduction by 65% using multi-stage caching and distroless images",
+            "Orchestrated 4-container local dev environment with healthchecks and volume mounts via Docker Compose",
+            "Configured non-root runtime permissions and automated image vulnerability scanning with Trivy"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "6 - 10 hrs"
+    },
+    "kubernetes": {
+        "title": "High-Availability K8s Cluster with Ingress & Horizontal Pod Autoscaling",
+        "summary": "Deploy a containerized application to Kubernetes with declarative manifests, Helm charts, NGINX ingress, and metric-driven HPA.",
+        "tech_stack": ["Kubernetes", "Helm", "kubectl", "NGINX Ingress", "Prometheus"],
+        "deliverables": [
+            "Authored modular Helm charts with ConfigMaps, Secrets, and rolling update strategies",
+            "Configured Horizontal Pod Autoscaler (HPA) targeting CPU and memory utilization thresholds",
+            "Implemented liveness/readiness probes and zero-downtime rolling deployments"
+        ],
+        "difficulty": "Advanced",
+        "est_hours": "12 - 16 hrs"
+    },
+    "kafka": {
+        "title": "Event-Driven Distributed Financial Order Book & Real-Time Analytics Pipeline",
+        "summary": "Build an event-driven stream processing architecture handling high-throughput message publishing, idempotent consumer groups, and dead-letter queues.",
+        "tech_stack": ["Apache Kafka", "Python", "FastAPI", "TimescaleDB", "Docker"],
+        "deliverables": [
+            "Implemented partitioned topic architecture supporting 5,000+ msgs/sec with exactly-once consumer semantics",
+            "Engineered dead-letter queue (DLQ) retry mechanisms for poison-pill message recovery",
+            "Built consumer group scaling with automatic partition rebalancing and offset commits"
+        ],
+        "difficulty": "Advanced",
+        "est_hours": "14 - 18 hrs"
+    },
+    "aws": {
+        "title": "Serverless Event-Driven Microservice with AWS Lambda, DynamoDB & SQS",
+        "summary": "Design an automated cloud-native backend provisioned with Infrastructure as Code (Terraform) leveraging AWS managed serverless primitives.",
+        "tech_stack": ["AWS Lambda", "Amazon SQS", "DynamoDB", "Terraform", "API Gateway"],
+        "deliverables": [
+            "Provisioned serverless architecture using modular Terraform scripts with least-privilege IAM roles",
+            "Decoupled asynchronous workloads using SQS FIFO queues and dead-letter queue escalation",
+            "Integrated CloudWatch structured metrics and alarms for operational alerting and P99 latency monitoring"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "10 - 14 hrs"
+    },
+    "redis": {
+        "title": "Distributed Token-Bucket Rate Limiter & Sliding-Window Session Store",
+        "summary": "Implement atomic distributed locking, sliding-window rate limiting, and multi-tier cache invalidation using Redis data structures.",
+        "tech_stack": ["Redis", "Python", "Lua Scripts", "FastAPI", "pytest"],
+        "deliverables": [
+            "Authored atomic Redis Lua scripts ensuring thread-safe distributed rate limiting with zero race conditions",
+            "Built TTL-based session caching reducing database query load by 70%",
+            "Configured Redis Pub/Sub for real-time WebSocket connection broadcast"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "6 - 8 hrs"
+    },
+    "graphql": {
+        "title": "Federated Supergraph Gateway with DataLoader & Subgraph Caching",
+        "summary": "Consolidate multiple independent backend services behind a unified, strongly-typed GraphQL schema avoiding N+1 query antipatterns.",
+        "tech_stack": ["GraphQL", "Strawberry/Apollo", "Python", "PostgreSQL", "DataLoader"],
+        "deliverables": [
+            "Eliminated N+1 query bottlenecks using batching DataLoaders across nested relationships",
+            "Designed schema-first type safety with strict query complexity depth limiting",
+            "Implemented field-level authorization and JWT claim verification"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "8 - 12 hrs"
+    },
+    "python": {
+        "title": "High-Throughput Asynchronous ETL Engine & REST API Framework",
+        "summary": "Architect an async Python data ingestion engine processing batch datasets into PostgreSQL with type annotations and validation.",
+        "tech_stack": ["Python", "FastAPI", "AsyncIO", "Pydantic v2", "SQLAlchemy 2.0"],
+        "deliverables": [
+            "Leveraged AsyncIO and threadpools for non-blocking I/O file processing and database pooling",
+            "Enforced strict runtime data validation with Pydantic v2 models and mypy static analysis",
+            "Achieved 95%+ test coverage using pytest, pytest-asyncio, and factory fixtures"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "8 - 12 hrs"
+    },
+    "postgresql": {
+        "title": "High-Performance Relational Schema with Partitioning & Read-Replica Pool",
+        "summary": "Design optimized relational models with composite indexing, range partitioning, and connection pooling for transactional loads.",
+        "tech_stack": ["PostgreSQL", "PgBouncer", "SQL", "Docker", "EXPLAIN ANALYZE"],
+        "deliverables": [
+            "Optimized slow query execution times by 80% through index profiling and query plan analysis (EXPLAIN ANALYZE)",
+            "Configured declarative table partitioning by date range to maintain sub-10ms query times over 10M+ rows",
+            "Integrated PgBouncer connection pooling supporting high concurrent connection spikes"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "8 - 12 hrs"
+    },
+    "react": {
+        "title": "Accessible Enterprise Component Library & Real-Time Analytics Dashboard",
+        "summary": "Develop a modular design system with responsive state management, accessible keyboard navigation, and WebSocket data charts.",
+        "tech_stack": ["React", "TypeScript", "TailwindCSS", "Zustand", "Recharts"],
+        "deliverables": [
+            "Built 15+ WCAG 2.1 AA accessible UI components with full keyboard navigation and ARIA attributes",
+            "Managed global client state efficiently using lightweight atomic state stores (Zustand)",
+            "Integrated live WebSocket streaming metrics into animated canvas/SVG visualization charts"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "10 - 14 hrs"
+    },
+    "typescript": {
+        "title": "Type-Safe Fullstack SDK & Schema Validation Ecosystem",
+        "summary": "Build a reusable, zero-dependency client library with generic type inference, discriminated unions, and automated API bindings.",
+        "tech_stack": ["TypeScript", "Zod", "Vitest", "npm / tsup"],
+        "deliverables": [
+            "Architected generic type inference for automated end-to-end type safety between client and server",
+            "Implemented runtime boundary validation using Zod schemas with descriptive error reporting",
+            "Configured dual ESM/CJS packaging with strict TypeScript tsconfig compiler flags"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "6 - 10 hrs"
+    },
+    "pytorch": {
+        "title": "End-to-End MLOps Training & ONNX Model Inference Service",
+        "summary": "Train a custom deep learning classifier, export to ONNX runtime, and serve through a low-latency microservice with model monitoring.",
+        "tech_stack": ["PyTorch", "ONNX Runtime", "FastAPI", "Docker", "Prometheus"],
+        "deliverables": [
+            "Trained and fine-tuned deep learning model with learning rate scheduling and early stopping",
+            "Quantized model to ONNX runtime achieving 3.5x lower inference latency on CPU targets",
+            "Packaged model inside containerized microservice with input validation and drift telemetry"
+        ],
+        "difficulty": "Advanced",
+        "est_hours": "14 - 18 hrs"
+    },
+    "go": {
+        "title": "Ultra-Low-Latency Concurrency Service with Goroutines & Channels",
+        "summary": "Build a high-performance proxy and worker-pool service in Go demonstrating clean architecture, context cancellation, and benchmarked memory efficiency.",
+        "tech_stack": ["Go", "Goroutines", "gRPC / Protobuf", "Docker", "pprof"],
+        "deliverables": [
+            "Constructed bounded worker pools with buffered channels and context timeouts preventing goroutine leaks",
+            "Implemented binary RPC communication with gRPC and Protocol Buffers for high-speed inter-service calls",
+            "Profiled memory allocations and CPU bottlenecks using Go's pprof tooling"
+        ],
+        "difficulty": "Intermediate",
+        "est_hours": "10 - 14 hrs"
+    }
+}
+
+def get_portfolio_project_roadmaps(missing_skills: List[str]) -> List[Dict[str, Any]]:
+    projects = []
+    seen = set()
+
+    for skill in missing_skills:
+        s_clean = skill.strip().lower()
+        if not s_clean or s_clean in seen:
+            continue
+        seen.add(s_clean)
+
+        if s_clean in _PORTFOLIO_PROJECT_CATALOG:
+            proj = dict(_PORTFOLIO_PROJECT_CATALOG[s_clean])
+            proj["skill"] = skill
+            proj["resume_bullet"] = proj.get("deliverables", [""])[0] if proj.get("deliverables") else f"Implemented {skill} solutions"
+            projects.append(proj)
+        else:
+            # Dynamic generator for any technical skill
+            formatted_name = skill.title()
+            proj = {
+                "skill": skill,
+                "title": f"Production {formatted_name} Architecture & Integration Sandbox",
+                "summary": f"Build a focused, demonstrable engineering repository showcasing best practices, automated unit tests, and production patterns for {formatted_name}.",
+                "tech_stack": [formatted_name, "Docker", "CI/CD", "Automated Tests"],
+                "deliverables": [
+                    f"Configured modular, maintainable project structure following idiomatic {formatted_name} patterns",
+                    f"Implemented core real-world business logic demonstrating deep familiarity with {formatted_name} APIs",
+                    "Authored automated unit and integration tests verifying edge cases and operational resilience"
+                ],
+                "difficulty": "Intermediate",
+                "est_hours": "8 - 12 hrs"
+            }
+            proj["resume_bullet"] = proj["deliverables"][0]
+            projects.append(proj)
+
+    return projects
+
+
+# ---------- Official Documentation & Free Certification Hub ----------
+_OFFICIAL_DOCS_CATALOG = {
+    "docker": {
+        "doc_title": "Official Docker Documentation & Manuals",
+        "doc_url": "https://docs.docker.com/get-started/",
+        "cert_title": "Docker Certified Associate (DCA) Study Roadmap",
+        "cert_url": "https://docs.docker.com/get-started/overview/",
+        "free_badge": "Free Official Docs & Sandbox"
+    },
+    "kubernetes": {
+        "doc_title": "Kubernetes Official Documentation & Interactive Tutorials",
+        "doc_url": "https://kubernetes.io/docs/tutorials/",
+        "cert_title": "Linux Foundation: Introduction to Kubernetes (Free Course)",
+        "cert_url": "https://www.edx.org/learn/kubernetes/the-linux-foundation-introduction-to-kubernetes",
+        "free_badge": "Free Official Course"
+    },
+    "python": {
+        "doc_title": "Python 3 Official Documentation & Tutorial",
+        "doc_url": "https://docs.python.org/3/tutorial/",
+        "cert_title": "Python Institute: Certified Associate in Python Programming",
+        "cert_url": "https://pythoninstitute.org/pcap",
+        "free_badge": "Free Documentation & Exercises"
+    },
+    "aws": {
+        "doc_title": "AWS Cloud Practitioner & Architecture Whitepapers",
+        "doc_url": "https://aws.amazon.com/whitepapers/",
+        "cert_title": "AWS Skill Builder: 600+ Free Digital Courses & Labs",
+        "cert_url": "https://explore.skillbuilder.aws/",
+        "free_badge": "Free Official Training"
+    },
+    "kafka": {
+        "doc_title": "Apache Kafka Official Quickstart & Architecture Guide",
+        "doc_url": "https://kafka.apache.org/documentation/",
+        "cert_title": "Confluent Developer: Free Kafka Courses & Certification Prep",
+        "cert_url": "https://developer.confluent.io/courses/",
+        "free_badge": "Free Confluent Courses"
+    },
+    "postgresql": {
+        "doc_title": "PostgreSQL Official Documentation",
+        "doc_url": "https://www.postgresql.org/docs/",
+        "cert_title": "Use The Index, Luke! - Complete Database Indexing Course",
+        "cert_url": "https://use-the-index-luke.com/",
+        "free_badge": "Free Performance Guide"
+    },
+    "redis": {
+        "doc_title": "Redis Documentation & Interactive Command Sandbox",
+        "doc_url": "https://redis.io/docs/",
+        "cert_title": "Redis University: Free Developer Courses & Badges",
+        "cert_url": "https://university.redis.com/",
+        "free_badge": "Free Official University"
+    },
+    "react": {
+        "doc_title": "React.dev Official Interactive Tutorial & Docs",
+        "doc_url": "https://react.dev/learn",
+        "cert_title": "freeCodeCamp: Front End Development Libraries Certification",
+        "cert_url": "https://www.freecodecamp.org/learn/front-end-development-libraries/",
+        "free_badge": "Free 100% Verified Certificate"
+    },
+    "typescript": {
+        "doc_title": "TypeScript Official Handbook & Type Playground",
+        "doc_url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+        "cert_title": "Total TypeScript: Beginners TypeScript Guide & Cheatsheets",
+        "cert_url": "https://www.totaltypescript.com/tutorials",
+        "free_badge": "Free Interactive Tutorials"
+    },
+    "go": {
+        "doc_title": "Go Documentation & Standard Library Reference",
+        "doc_url": "https://go.dev/doc/",
+        "cert_title": "A Tour of Go (Official Interactive In-Browser Sandbox)",
+        "cert_url": "https://go.dev/tour/welcome/1",
+        "free_badge": "Free Interactive Sandbox"
+    },
+    "pytorch": {
+        "doc_title": "PyTorch Official Documentation & Recipes",
+        "doc_url": "https://pytorch.org/docs/stable/index.html",
+        "cert_title": "DeepLearning.AI: Free PyTorch Deep Learning Tutorials",
+        "cert_url": "https://pytorch.org/tutorials/",
+        "free_badge": "Free Tutorials & Colab Notebooks"
+    },
+    "graphql": {
+        "doc_title": "GraphQL Foundation Official Specifications & Docs",
+        "doc_url": "https://graphql.org/learn/",
+        "cert_title": "Apollo GraphQL Odyssey: Free Developer Courses",
+        "cert_url": "https://www.apollographql.com/tutorials/",
+        "free_badge": "Free Official Tutorials"
+    }
+}
+
+def get_official_docs_and_certs(missing_skills: List[str]) -> List[Dict[str, Any]]:
+    resources = []
+    seen = set()
+
+    for skill in missing_skills:
+        s_clean = skill.strip().lower()
+        if not s_clean or s_clean in seen:
+            continue
+        seen.add(s_clean)
+
+        if s_clean in _OFFICIAL_DOCS_CATALOG:
+            cat_item = _OFFICIAL_DOCS_CATALOG[s_clean]
+            item = {
+                "skill": skill,
+                "title": cat_item.get("doc_title", f"Official {skill.title()} Documentation"),
+                "url": cat_item.get("doc_url", "https://devdocs.io/"),
+                "authority": "Official Vendor / Project",
+                "type": "Documentation & Certified Roadmap",
+                "summary": f"High-authority official specifications, architecture guides, and interactive sandbox exercises for {skill}.",
+                "doc_title": cat_item.get("doc_title"),
+                "doc_url": cat_item.get("doc_url"),
+                "cert_title": cat_item.get("cert_title"),
+                "cert_url": cat_item.get("cert_url"),
+                "free_badge": cat_item.get("free_badge", "Free Developer Resource")
+            }
+            resources.append(item)
+        else:
+            q = urllib.parse.quote_plus(skill)
+            resources.append({
+                "skill": skill,
+                "title": f"Official {skill.title()} Documentation & Reference",
+                "url": f"https://devdocs.io/#q={q}",
+                "authority": "Authoritative Developer Specs",
+                "type": "Documentation",
+                "summary": f"Standard API manual and community documentation guides for {skill}.",
+                "doc_title": f"Official {skill.title()} Documentation & Reference",
+                "doc_url": f"https://devdocs.io/#q={q}",
+                "cert_title": f"{skill.title()} Free Certification & Curriculum Guide",
+                "cert_url": f"https://www.google.com/search?q={urllib.parse.quote_plus(skill + ' free certification course')}",
+                "free_badge": "Free Developer Resource"
+            })
+
+    return resources
+
+
+# ---------- Salary & Compensation Estimator ----------
+def estimate_salary_range(role_title: str, years: float, skills: Set[str]) -> Dict[str, Any]:
+    # 1. Base salary by experience level
+    if years < 2.0:
+        base_min, base_max = 75000, 105000
+        seniority = "Junior / Associate (0 - 2 Yrs)"
+    elif years < 5.0:
+        base_min, base_max = 105000, 145000
+        seniority = "Mid-Level Engineer (2 - 5 Yrs)"
+    elif years < 8.0:
+        base_min, base_max = 145000, 190000
+        seniority = "Senior Engineer (5 - 8 Yrs)"
+    else:
+        base_min, base_max = 190000, 255000
+        seniority = "Staff / Principal / Lead (8+ Yrs)"
+
+    # 2. Role Domain Multiplier
+    factors = []
+    r_lower = (role_title or "").lower()
+    mult = 1.0
+
+    if any(k in r_lower for k in ["machine learning", "ml", "ai", "artificial intelligence", "nlp", "computer vision"]):
+        mult += 0.15
+        factors.append("+15% AI / Machine Learning Specialization")
+    elif any(k in r_lower for k in ["cloud", "devops", "sre", "infrastructure", "security"]):
+        mult += 0.12
+        factors.append("+12% Cloud & Platform Infrastructure Depth")
+    elif any(k in r_lower for k in ["distributed", "backend", "systems", "platform"]):
+        mult += 0.10
+        factors.append("+10% High-Throughput Distributed Systems")
+    elif any(k in r_lower for k in ["full stack", "fullstack"]):
+        mult += 0.05
+        factors.append("+5% Full-Stack Breadth")
+
+    # 3. High-Value Skill Premiums
+    high_value_skills = {
+        "kubernetes": 6000,
+        "kafka": 7000,
+        "aws": 5000,
+        "pytorch": 8000,
+        "go": 6000,
+        "rust": 9000,
+        "system design": 7500,
+        "terraform": 5000,
+        "microservices": 4000
+    }
+
+    premium_total = 0
+    matched_premiums = []
+    for s in skills:
+        s_norm = s.strip().lower()
+        if s_norm in high_value_skills:
+            premium_total += high_value_skills[s_norm]
+            matched_premiums.append(s.title())
+
+    if matched_premiums:
+        factors.append(f"+${premium_total:,} Premium for: {', '.join(matched_premiums[:3])}")
+
+    final_min = int(round((base_min * mult + premium_total) / 1000.0) * 1000)
+    final_max = int(round((base_max * mult + premium_total) / 1000.0) * 1000)
+    median = int((final_min + final_max) / 2)
+    fmt = f"${int(final_min/1000)}k - ${int(final_max/1000)}k / yr"
+
+    return {
+        "min_salary": final_min,
+        "max_salary": final_max,
+        "median_salary": median,
+        "market_median": median,
+        "currency": "USD",
+        "formatted": fmt,
+        "display_range": fmt,
+        "tier": seniority,
+        "seniority": seniority,
+        "breakdown": factors
+    }
 

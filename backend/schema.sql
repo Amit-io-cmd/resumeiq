@@ -7,3 +7,26 @@ CREATE TABLE IF NOT EXISTS resume_skills (resume_id INTEGER REFERENCES resumes(i
 CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, resume_id INTEGER REFERENCES resumes(id), job_id INTEGER REFERENCES jobs(id), score REAL, missing_skills TEXT);
 CREATE TABLE IF NOT EXISTS youtube_cache (skill TEXT PRIMARY KEY, title TEXT, channel TEXT, url TEXT, cached_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS external_jobs_cache (query TEXT PRIMARY KEY, raw_json TEXT, cached_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS skill_trackers (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER DEFAULT 0,
+    skill TEXT NOT NULL,
+    status TEXT DEFAULT 'to_learn',
+    notes TEXT DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, skill)
+);
+CREATE TABLE IF NOT EXISTS job_applications (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER DEFAULT 0,
+    role_title TEXT NOT NULL,
+    company TEXT NOT NULL,
+    location TEXT DEFAULT 'Remote',
+    salary_range TEXT DEFAULT '$95k - $135k',
+    match_score REAL DEFAULT 0,
+    stage TEXT DEFAULT 'saved',
+    url TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

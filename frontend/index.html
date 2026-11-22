@@ -64,10 +64,10 @@
 
         <button class="sidebar-nav-item" data-phase="study-hub" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
-            <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
           </svg>
-          <span>Study Tutorials</span>
+          <span>Upskilling & Roadmaps</span>
         </button>
 
         <button class="sidebar-nav-item" data-phase="open-roles" type="button">
@@ -76,6 +76,15 @@
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
           </svg>
           <span>Live Job Feeds</span>
+        </button>
+
+        <button class="sidebar-nav-item" data-phase="crm" type="button">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+          <span>Application Tracker (CRM)</span>
         </button>
 
         <div class="nav-group-label">Intelligence</div>
@@ -471,24 +480,24 @@
         </div>
       </main>
 
-      <!-- Phase 4: Missing Skills -> YouTube Study Hub -->
+      <!-- Phase 4: Upskilling & Roadmaps -->
       <main class="workbench-pane app-phase" id="phase-study-hub" hidden>
         <header class="section-header">
-          <div class="tag-pill">Phase 4 · Upskilling & Gap Remediation</div>
-          <h1>Skill Gaps & YouTube Study Hub</h1>
-          <p>Targeted technical tutorials, project walkthroughs, and crash courses for required skills missing from your resume.</p>
+          <div class="tag-pill">Phase 4 · Career Pathing & Up-skilling Roadmaps</div>
+          <h1>Skill Gaps & Engineering Roadmaps</h1>
+          <p>Actionable remediation roadmaps for skills missing from your resume: video walkthroughs, hands-on portfolio projects to prove your skills on GitHub, and official documentation.</p>
         </header>
 
         <!-- Empty State -->
         <div class="glass-card phase-empty-state" id="empty-phase-study-hub">
           <div class="empty-state-icon">
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
-              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
             </svg>
           </div>
           <h3 class="empty-state-title">No Missing Skills Identified Yet</h3>
-          <p class="empty-state-desc">Evaluate your resume against a target role to automatically surface missing technical skills and free YouTube study roadmaps.</p>
+          <p class="empty-state-desc">Evaluate your resume against a target role to automatically surface missing technical skills, video walkthroughs, and portfolio project architecture specs.</p>
           <div class="empty-state-actions">
             <button class="btn btn-primary" data-goto-phase="diagnostic" type="button">Go to Resume Diagnostic</button>
             <button class="btn btn-ghost btn-load-sample-instant" type="button">⚡ Load Sample & Analyze</button>
@@ -496,13 +505,56 @@
         </div>
 
         <!-- Content -->
-        <div id="content-phase-study-hub" class="glass-card study-hub-card" hidden>
-          <div class="card-title-row">
-            <h3>Targeted Missing Skill Roadmap</h3>
-            <span class="badge-neutral">SQLite Cached · Zero Quota Exhaustion</span>
+        <div id="content-phase-study-hub" hidden>
+          <!-- Roadmap Navigation Subtabs -->
+          <div class="roadmap-subtabs-bar">
+            <div class="segmented-control">
+              <button class="segment-btn on" id="subtab-youtube" type="button">📺 Video Tutorials</button>
+              <button class="segment-btn" id="subtab-projects" type="button">🛠️ Portfolio Projects</button>
+              <button class="segment-btn" id="subtab-docs" type="button">📚 Official Docs & Certs</button>
+              <button class="segment-btn" id="subtab-tracker" type="button">🎯 My Skill Tracker (<span id="tracked-skills-count">0</span>)</button>
+            </div>
           </div>
-          <p class="card-hint">Curated engineering tutorials with video previews, direct watch links, and search queries:</p>
-          <div id="study-links-container" class="study-links-grid"></div>
+
+          <!-- Tab 1: YouTube Tutorials -->
+          <div class="roadmap-panel glass-card study-hub-card active" id="panel-youtube">
+            <div class="card-title-row">
+              <h3>Targeted Technical Tutorials</h3>
+              <span class="badge-neutral">SQLite Cached · Zero Quota Exhaustion</span>
+            </div>
+            <p class="card-hint">Curated engineering tutorials with video previews, direct watch links, and search queries:</p>
+            <div id="study-links-container" class="study-links-grid"></div>
+          </div>
+
+          <!-- Tab 2: Hands-on Portfolio Projects -->
+          <div class="roadmap-panel glass-card" id="panel-projects" hidden>
+            <div class="card-title-row">
+              <h3>GitHub Portfolio Projects for Skill Gaps</h3>
+              <span class="badge-neutral">Resume-Ready Architecture Specs</span>
+            </div>
+            <p class="card-hint">Build and deploy these concrete projects to provide verifiable proof of your missing skills in interviews:</p>
+            <div id="portfolio-projects-container" class="projects-grid"></div>
+          </div>
+
+          <!-- Tab 3: Official Docs & Certifications -->
+          <div class="roadmap-panel glass-card" id="panel-docs" hidden>
+            <div class="card-title-row">
+              <h3>Official Documentation & Free Certifications</h3>
+              <span class="badge-neutral">High-Authority Developer Resources</span>
+            </div>
+            <p class="card-hint">Official specification manuals, interactive browser sandboxes, and free certification programs:</p>
+            <div id="official-docs-container" class="docs-grid"></div>
+          </div>
+
+          <!-- Tab 4: Interactive Skill Gap Tracker -->
+          <div class="roadmap-panel glass-card" id="panel-tracker" hidden>
+            <div class="card-title-row">
+              <h3>Interactive Skill Gap Tracker</h3>
+              <span class="badge-neutral" id="tracker-summary-badge">0 Tracked</span>
+            </div>
+            <p class="card-hint">Track your learning progress across target skills. Saved automatically to your profile:</p>
+            <div id="skill-tracker-container" class="skill-tracker-list"></div>
+          </div>
         </div>
 
         <div class="phase-nav-footer">
@@ -540,20 +592,120 @@
           <div class="section-heading-row">
             <div>
               <h2 class="section-title">Live Matching Roles</h2>
-              <p class="section-sub">Scored against your resume's technical skills with direct application links.</p>
+              <p class="section-sub">Scored against your resume's technical skills with predicted market compensation and 1-click pipeline tracking.</p>
             </div>
             <button class="btn btn-ghost btn-sm" id="refresh-open-roles" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh Open Roles
             </button>
           </div>
+          <div class="job-filters-bar">
+            <input type="text" id="filter-job-keyword" class="field-input" placeholder="Search by title, stack, or company...">
+            <select id="filter-job-remote" class="field-select">
+              <option value="all">All Locations / Remote</option>
+              <option value="remote">Remote Only</option>
+              <option value="onsite">On-Site / Hybrid</option>
+            </select>
+          </div>
           <div id="open-roles-grid" class="open-roles-grid"></div>
         </div>
 
         <div class="phase-nav-footer">
-          <button class="btn btn-ghost btn-sm" data-goto-phase="study-hub" type="button">◀ Study Tutorials</button>
+          <button class="btn btn-ghost btn-sm" data-goto-phase="study-hub" type="button">◀ Upskilling Roadmaps</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="crm" type="button">Next: Application Tracker (CRM) ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 6: Application Tracker CRM (Kanban Pipeline) -->
+      <main class="workbench-pane app-phase" id="phase-crm" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Phase 6 · Personal Career Pipeline CRM</div>
+          <h1>Job Application Tracking CRM</h1>
+          <p>Organize target opportunities from initial bookmark to interview rounds and final offers with zero subscription fees or vendor paywalls.</p>
+        </header>
+
+        <!-- CRM Metrics & Action Bar -->
+        <div class="crm-top-strip glass-card">
+          <div class="crm-metrics-group">
+            <div class="crm-metric-pill">
+              <span class="metric-val" id="crm-stat-saved">0</span>
+              <span class="metric-lbl">Saved</span>
+            </div>
+            <div class="crm-metric-pill">
+              <span class="metric-val" id="crm-stat-applied">0</span>
+              <span class="metric-lbl">Applied</span>
+            </div>
+            <div class="crm-metric-pill">
+              <span class="metric-val" id="crm-stat-interviewing">0</span>
+              <span class="metric-lbl">Interviewing</span>
+            </div>
+            <div class="crm-metric-pill">
+              <span class="metric-val text-success" id="crm-stat-offer">0</span>
+              <span class="metric-lbl">Offers</span>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-open-crm-modal" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Opportunity
+          </button>
+        </div>
+
+        <!-- 4-Column Kanban Board -->
+        <div class="kanban-board">
+          <!-- Col 1: Saved / Wishlist -->
+          <div class="kanban-column" data-stage="saved">
+            <div class="kanban-col-header">
+              <div class="col-title-group">
+                <span class="kanban-stage-dot stage-saved"></span>
+                <h3>Saved / Wishlist</h3>
+              </div>
+              <span class="badge-neutral kanban-count" id="count-col-saved">0</span>
+            </div>
+            <div class="kanban-card-list" id="kanban-list-saved"></div>
+          </div>
+
+          <!-- Col 2: Applied -->
+          <div class="kanban-column" data-stage="applied">
+            <div class="kanban-col-header">
+              <div class="col-title-group">
+                <span class="kanban-stage-dot stage-applied"></span>
+                <h3>Applied</h3>
+              </div>
+              <span class="badge-neutral kanban-count" id="count-col-applied">0</span>
+            </div>
+            <div class="kanban-card-list" id="kanban-list-applied"></div>
+          </div>
+
+          <!-- Col 3: Interviewing -->
+          <div class="kanban-column" data-stage="interviewing">
+            <div class="kanban-col-header">
+              <div class="col-title-group">
+                <span class="kanban-stage-dot stage-interviewing"></span>
+                <h3>Interviewing</h3>
+              </div>
+              <span class="badge-neutral kanban-count" id="count-col-interviewing">0</span>
+            </div>
+            <div class="kanban-card-list" id="kanban-list-interviewing"></div>
+          </div>
+
+          <!-- Col 4: Offers & Final -->
+          <div class="kanban-column" data-stage="offer">
+            <div class="kanban-col-header">
+              <div class="col-title-group">
+                <span class="kanban-stage-dot stage-offer"></span>
+                <h3>Offers & Final</h3>
+              </div>
+              <span class="badge-neutral kanban-count" id="count-col-offer">0</span>
+            </div>
+            <div class="kanban-card-list" id="kanban-list-offer"></div>
+          </div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="open-roles" type="button">◀ Live Job Feeds</button>
           <button class="btn btn-primary btn-sm" data-goto-phase="insights" type="button">Next: Skill Demand ▶</button>
         </div>
+      </main>
       </main>
 
       <!-- Phase 6: Market Insights SQL View -->
@@ -691,6 +843,69 @@
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Opportunity Modal (Kanban CRM) -->
+  <div class="modal-backdrop" id="crm-modal-backdrop" hidden>
+    <div class="auth-modal glass-card" id="crm-modal">
+      <div class="modal-header">
+        <div class="modal-brand-row">
+          <div class="brand-badge modal-badge">CRM</div>
+          <div>
+            <h3 class="modal-title">Track New Opportunity</h3>
+            <p class="modal-subtitle">Save a target position to your personal application pipeline.</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="crm-modal-close" type="button" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="form-add-crm-job" class="custom-login-form">
+          <div class="form-group">
+            <label for="crm-input-title" class="field-label">Target Role Title *</label>
+            <input type="text" id="crm-input-title" class="field-input" placeholder="e.g. Senior Backend Engineer" required>
+          </div>
+          <div class="form-group">
+            <label for="crm-input-company" class="field-label">Company Name *</label>
+            <input type="text" id="crm-input-company" class="field-input" placeholder="e.g. Stripe, Linear, or Startup" required>
+          </div>
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label for="crm-input-location" class="field-label">Location / Remote</label>
+              <input type="text" id="crm-input-location" class="field-input" placeholder="e.g. Remote or Hybrid" value="Remote">
+            </div>
+            <div class="form-group">
+              <label for="crm-input-stage" class="field-label">Initial Stage</label>
+              <select id="crm-input-stage" class="field-select">
+                <option value="saved">Saved / Wishlist</option>
+                <option value="applied">Applied</option>
+                <option value="interviewing">Interviewing</option>
+                <option value="offer">Offer Received</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="crm-input-salary" class="field-label">Estimated Compensation</label>
+            <input type="text" id="crm-input-salary" class="field-input" placeholder="e.g. $130k - $170k / yr" value="$110k - $150k / yr">
+          </div>
+          <div class="form-group">
+            <label for="crm-input-url" class="field-label">Listing or Referral Link</label>
+            <input type="url" id="crm-input-url" class="field-input" placeholder="https://careers.company.com/job/123">
+          </div>
+          <div class="form-group">
+            <label for="crm-input-notes" class="field-label">Notes & Recruiter Contact</label>
+            <textarea id="crm-input-notes" class="field-textarea" rows="2" placeholder="e.g. Applied via referral, hiring manager is Sarah..."></textarea>
+          </div>
+
+          <button class="btn btn-primary btn-block" type="submit" id="btn-submit-crm-job">
+            Save to Pipeline
+          </button>
+          <button class="btn btn-ghost btn-sm btn-block" id="crm-modal-cancel" type="button" style="margin-top: 6px;">
+            Cancel
+          </button>
+        </form>
       </div>
     </div>
   </div>

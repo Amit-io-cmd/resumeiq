@@ -183,6 +183,84 @@ def save_external_jobs_cache(query: str, jobs_data):
             (normalized, raw)
         )
 
+
+# ---------- Skill Gap Trackers (Upskilling Roadmap) ----------
+def get_skill_trackers(user_id: int = 0):
+    with conn() as c:
+        rows = c.execute(
+            "SELECT id, user_id, skill, status, notes, updated_at FROM skill_trackers WHERE user_id=? ORDER BY updated_at DESC",
+            (user_id or 0,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_skill_tracker(user_id: int = 0, skill: str = "", status: str = "to_learn", notes: str = ""):
+    skill_clean = skill.strip()
+    if not skill_clean:
+        return None
+    with conn() as c:
+        c.execute(
+            "INSERT INTO skill_trackers(user_id, skill, status, notes, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(user_id, skill) DO UPDATE SET status=excluded.status, notes=excluded.notes, updated_at=CURRENT_TIMESTAMP",
+            (user_id or 0, skill_clean, status, notes)
+        )
+        row = c.execute("SELECT * FROM skill_trackers WHERE user_id=? AND skill=?", (user_id or 0, skill_clean)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_skill_tracker(user_id: int = 0, skill: str = ""):
+    with conn() as c:
+        c.execute("DELETE FROM skill_trackers WHERE user_id=? AND skill=?", (user_id or 0, skill.strip()))
+        return True
+
+
+# ---------- Job Applications (Kanban CRM) ----------
+def get_job_applications(user_id: int = 0):
+    with conn() as c:
+        rows = c.execute(
+            "SELECT id, user_id, role_title, company, location, salary_range, match_score, stage, url, notes, created_at, updated_at "
+            "FROM job_applications WHERE user_id=? ORDER BY id DESC",
+            (user_id or 0,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_job_application(user_id: int = 0, role_title: str = "", company: str = "", location: str = "Remote",
+                        salary_range: str = "$95k - $135k", match_score: float = 0, stage: str = "saved",
+                        url: str = "", notes: str = ""):
+    with conn() as c:
+        cursor = c.execute(
+            "INSERT INTO job_applications(user_id, role_title, company, location, salary_range, match_score, stage, url, notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id or 0, role_title.strip(), company.strip(), location.strip(), salary_range.strip(),
+             float(match_score), stage.strip().lower(), url.strip(), notes.strip())
+        )
+        app_id = cursor.lastrowid
+        row = c.execute("SELECT * FROM job_applications WHERE id=?", (app_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_job_application_stage(app_id: int, user_id: int = 0, stage: str = "saved", notes: Optional[str] = None):
+    with conn() as c:
+        if notes is not None:
+            c.execute(
+                "UPDATE job_applications SET stage=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND (user_id=? OR user_id=0)",
+                (stage.strip().lower(), notes.strip(), app_id, user_id or 0)
+            )
+        else:
+            c.execute(
+                "UPDATE job_applications SET stage=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND (user_id=? OR user_id=0)",
+                (stage.strip().lower(), app_id, user_id or 0)
+            )
+        row = c.execute("SELECT * FROM job_applications WHERE id=?", (app_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_job_application(app_id: int, user_id: int = 0):
+    with conn() as c:
+        c.execute("DELETE FROM job_applications WHERE id=? AND (user_id=? OR user_id=0)", (app_id, user_id or 0))
+        return True
+
 # Ensure all schema tables and columns exist on load
 try:
     with conn() as _c:

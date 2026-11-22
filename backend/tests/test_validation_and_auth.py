@@ -187,6 +187,99 @@ class AuthAndEndpointsTests(unittest.TestCase):
         self.assertEqual(len(data["study_links"]), 3)
         self.assertTrue(all("url" in item for item in data["study_links"]))
 
+    def test_skills_roadmap_and_portfolio_projects(self):
+        res = client.post("/api/skills/roadmap", data={"skills": "Docker, Kubernetes, AWS, Redis"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("portfolio_projects", data)
+        self.assertIn("official_docs", data)
+        projects = data["portfolio_projects"]
+        self.assertGreaterEqual(len(projects), 3)
+        self.assertIn("resume_bullet", projects[0])
+        self.assertIn("tech_stack", projects[0])
+        self.assertIn("deliverables", projects[0])
+
+        docs = data["official_docs"]
+        self.assertGreaterEqual(len(docs), 3)
+        self.assertIn("authority", docs[0])
+        self.assertIn("url", docs[0])
+
+    def test_skills_tracker_crud_endpoints(self):
+        # 1. Post to track skill
+        post_res = client.post("/api/skills/track", data={"skill": "Kubernetes", "status": "to_learn", "notes": "Target for Q1"})
+        self.assertEqual(post_res.status_code, 200)
+        self.assertTrue(post_res.json()["success"])
+
+        # 2. Get tracked skills
+        get_res = client.get("/api/skills/track")
+        self.assertEqual(get_res.status_code, 200)
+        tracked = get_res.json()["tracked_skills"]
+        k8s_items = [item for item in tracked if item["skill"] == "Kubernetes"]
+        self.assertGreater(len(k8s_items), 0)
+        self.assertEqual(k8s_items[0]["status"], "to_learn")
+
+        # 3. Update status to in_progress
+        update_res = client.post("/api/skills/track", data={"skill": "Kubernetes", "status": "in_progress", "notes": "Building first cluster"})
+        self.assertEqual(update_res.status_code, 200)
+
+        get_res2 = client.get("/api/skills/track")
+        updated_k8s = [item for item in get_res2.json()["tracked_skills"] if item["skill"] == "Kubernetes"][0]
+        self.assertEqual(updated_k8s["status"], "in_progress")
+
+        # 4. Delete tracked skill
+        del_res = client.request("DELETE", "/api/skills/track", data={"skill": "Kubernetes"})
+        self.assertEqual(del_res.status_code, 200)
+
+    def test_salary_estimate_endpoint(self):
+        res = client.post("/api/salary/estimate", data={"role_title": "Senior Backend Engineer", "years": "5.0", "skills": "Python, Go, AWS, Docker"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("display_range", data)
+        self.assertIn("market_median", data)
+        self.assertIn("tier", data)
+        self.assertGreater(data["market_median"], 100000)
+
+    def test_crm_kanban_pipeline_crud_flow(self):
+        # 1. Create a job opportunity in Saved stage
+        post_res = client.post("/api/crm/jobs", data={
+            "role_title": "Staff Backend Engineer",
+            "company": "Stripe",
+            "location": "Remote - US",
+            "salary_range": "$160k - $210k / yr",
+            "match_score": "88",
+            "stage": "saved",
+            "url": "https://stripe.com/jobs/123",
+            "notes": "Referred by Alex"
+        })
+        self.assertEqual(post_res.status_code, 200)
+        job = post_res.json()["job"]
+        job_id = job["id"]
+        self.assertEqual(job["role_title"], "Staff Backend Engineer")
+        self.assertEqual(job["stage"], "saved")
+
+        # 2. Get CRM jobs and verify stages organization
+        get_res = client.get("/api/crm/jobs")
+        self.assertEqual(get_res.status_code, 200)
+        crm_data = get_res.json()
+        self.assertIn("stages", crm_data)
+        saved_jobs = [j for j in crm_data["stages"]["saved"] if j["id"] == job_id]
+        self.assertEqual(len(saved_jobs), 1)
+
+        # 3. Update stage to Interviewing
+        patch_res = client.patch(f"/api/crm/jobs/{job_id}", data={"stage": "interviewing", "notes": "System design round scheduled"})
+        self.assertEqual(patch_res.status_code, 200)
+        updated_job = patch_res.json()["job"]
+        self.assertEqual(updated_job["stage"], "interviewing")
+
+        # 4. Delete the job from pipeline
+        del_res = client.delete(f"/api/crm/jobs/{job_id}")
+        self.assertEqual(del_res.status_code, 200)
+
+        # 5. Verify deletion
+        get_res2 = client.get("/api/crm/jobs")
+        remaining = [j for j in get_res2.json()["jobs"] if j["id"] == job_id]
+        self.assertEqual(len(remaining), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
