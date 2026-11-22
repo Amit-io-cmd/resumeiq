@@ -50,10 +50,16 @@ function resetPreviousResults() {
   currentResumeText = '';
   selectedJobIdx = 0;
 
-  // Hide analysis output, warnings, and validation error
+  // Hide analysis output, warnings, summary card, and validation error
   if ($('#out')) $('#out').hidden = true;
   if ($('#resume-warnings-card')) $('#resume-warnings-card').hidden = true;
+  const sumCard = $('#diagnostic-summary-card');
+  if (sumCard) {
+    sumCard.setAttribute('hidden', '');
+    sumCard.style.display = 'none';
+  }
   hideValidationError();
+  updatePhaseStates();
 
   const drop = $('#drop');
   if (drop) {
@@ -77,6 +83,10 @@ function resetPreviousResults() {
 
   // Clear evidence document
   if ($('#doc')) $('#doc').innerHTML = '';
+
+  // Clear gaps summary in score phase
+  if ($('#gaps-count-badge')) $('#gaps-count-badge').textContent = '0 Gaps';
+  if ($('#gaps-tags-summary')) $('#gaps-tags-summary').innerHTML = '';
 
   // Clear study hub
   if ($('#study-links-container')) $('#study-links-container').innerHTML = '';
@@ -119,42 +129,123 @@ if ($('#sidebar-toggle')) $('#sidebar-toggle').onclick = openSidebar;
 if ($('#sidebar-close')) $('#sidebar-close').onclick = closeSidebar;
 if ($('#sidebar-backdrop')) $('#sidebar-backdrop').onclick = closeSidebar;
 
+// Phase Navigation & Workbench Views
+let currentPhase = 'diagnostic';
+
+function updatePhaseStates() {
+  const hasAnalysis = !!analysisData;
+  const requiresAnalysis = ['score', 'predictions', 'study-hub', 'open-roles'];
+
+  requiresAnalysis.forEach(p => {
+    const emptyEl = document.getElementById(`empty-phase-${p}`);
+    const contentEl = document.getElementById(`content-phase-${p}`);
+    if (emptyEl && contentEl) {
+      if (hasAnalysis) {
+        emptyEl.setAttribute('hidden', '');
+        emptyEl.style.display = 'none';
+        contentEl.removeAttribute('hidden');
+        contentEl.style.display = '';
+      } else {
+        emptyEl.removeAttribute('hidden');
+        emptyEl.style.display = '';
+        contentEl.setAttribute('hidden', '');
+        contentEl.style.display = 'none';
+      }
+    }
+  });
+}
+
+function switchPhase(phaseId) {
+  if (!phaseId) return;
+  currentPhase = phaseId;
+
+  // 1. Highlight active nav button
+  $$('.sidebar-nav-item').forEach(btn => {
+    if (btn.dataset.phase === phaseId) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // 2. Hide all other phases, show only the target phase
+  $$('.app-phase').forEach(phase => {
+    if (phase.id === `phase-${phaseId}`) {
+      phase.classList.add('active');
+      phase.removeAttribute('hidden');
+      phase.style.display = 'block';
+    } else {
+      phase.classList.remove('active');
+      phase.setAttribute('hidden', '');
+      phase.style.display = 'none';
+    }
+  });
+
+  // 3. Update topbar title
+  const activeBtn = document.querySelector(`.sidebar-nav-item[data-phase="${phaseId}"]`);
+  const label = activeBtn && activeBtn.querySelector('span') ? activeBtn.querySelector('span').textContent : 'Diagnostic';
+  if ($('#topbar-title')) $('#topbar-title').textContent = label;
+
+  // 4. Update phase empty/content states
+  updatePhaseStates();
+
+  // 5. Special phase triggers
+  if (phaseId === 'insights') {
+    loadInsights();
+  }
+
+  // 6. Scroll smoothly to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // 7. Auto close mobile sidebar
+  closeSidebar();
+}
+
 // Sidebar navigation link clicks
 $$('.sidebar-nav-item').forEach(btn => {
   btn.onclick = () => {
-    $$('.sidebar-nav-item').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    const view = btn.dataset.view; // 'cand' or 'rec'
-    const sectionId = btn.dataset.section;
-    const label = btn.querySelector('span') ? btn.querySelector('span').textContent : 'Diagnostic';
-
-    if (view === 'rec') {
-      $('#cand').hidden = true;
-      $('#rec').hidden = false;
-      if ($('#topbar-title')) $('#topbar-title').textContent = 'Recruiter Cohort Screening';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      $('#cand').hidden = false;
-      $('#rec').hidden = true;
-      if ($('#topbar-title')) $('#topbar-title').textContent = label;
-
-      if (sectionId) {
-        const targetEl = document.getElementById(sectionId);
-        if (targetEl) {
-          if (sectionId !== 'section-diagnostic' && $('#out') && $('#out').hidden) {
-            say('#msg', `Load your resume to unlock full ${label} analysis.`);
-          }
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }
-
-    closeSidebar();
+    const phase = btn.dataset.phase;
+    if (phase) switchPhase(phase);
   };
 });
+
+// Delegate [data-goto-phase] and sample loading buttons across all phases
+document.addEventListener('click', e => {
+  const gotoBtn = e.target.closest('[data-goto-phase]');
+  if (gotoBtn) {
+    const phase = gotoBtn.dataset.gotoPhase;
+    if (phase) switchPhase(phase);
+    return;
+  }
+
+  const sampleInstantBtn = e.target.closest('.btn-load-sample-instant');
+  if (sampleInstantBtn) {
+    loadSampleAndRun();
+    return;
+  }
+});
+
+// Instant sample resume execution helper
+async function loadSampleAndRun() {
+  try {
+    const res = await fetch('/data/sample_resume.txt');
+    if (!res.ok) throw new Error('Sample resume file not found');
+    const txt = await res.text();
+    currentResumeText = txt;
+    selectedFile = null;
+    const fname = $('#fname');
+    if (fname) fname.textContent = 'sample_resume.txt (Loaded)';
+    const drop = $('#drop');
+    if (drop) {
+      drop.classList.remove('drop-error');
+      drop.classList.add('drop-success');
+    }
+    switchPhase('diagnostic');
+    if ($('#go')) $('#go').click();
+  } catch (err) {
+    say('#msg', 'Error loading sample: ' + err.message, true);
+  }
+}
 
 // Mode Toggle (Specify Role vs Predict Best Roles)
 $('#mode-target').onclick = () => {
@@ -376,6 +467,9 @@ async function runAnalysis() {
     loadOpenRoles(getActiveRoleTitle());
     loadInsights();
 
+    // Automatically navigate to Match Fit & ATS phase so user sees their detailed results immediately
+    switchPhase('score');
+
     // Refresh user drawer history if signed in
     if (currentUser) {
       fetchUserHistory();
@@ -409,11 +503,33 @@ function getActiveRoleTitle() {
 // Render Dashboard View
 function renderDashboard() {
   $('#out').hidden = false;
+  updatePhaseStates();
+
   const active = getActiveJob();
   if (!active) return;
 
-  // 1. Score Overview & Radial Progress
+  // Update diagnostic summary card
+  const sumCard = $('#diagnostic-summary-card');
+  if (sumCard) {
+    sumCard.removeAttribute('hidden');
+    sumCard.style.display = 'block';
+  }
   const scoreVal = Math.round(active.score);
+  if ($('#summary-score-val')) $('#summary-score-val').textContent = scoreVal;
+  if ($('#summary-role-name')) $('#summary-role-name').textContent = active.title || 'Target Role';
+
+  // Update missing skill gaps summary card in phase-score
+  const gaps = active.missing || [];
+  if ($('#gaps-count-badge')) $('#gaps-count-badge').textContent = `${gaps.length} Missing`;
+  if ($('#gaps-tags-summary')) {
+    if (gaps.length) {
+      $('#gaps-tags-summary').innerHTML = gaps.map(g => `<span class="gap-pill">${esc(g)}</span>`).join('');
+    } else {
+      $('#gaps-tags-summary').innerHTML = '<span class="status-indicator">All role skills matched in resume!</span>';
+    }
+  }
+
+  // 1. Score Overview & Radial Progress
   $('#score').textContent = scoreVal;
   $('#jobname').textContent = `${active.title} · ${active.company || 'Industry Standard'}`;
   $('#method').textContent = active.method || 'Hybrid NLP Match';
@@ -555,7 +671,9 @@ function renderPredictedRoles(roles) {
       }
 
       loadOpenRoles(targetTitle);
-      say('#msg', '');
+      renderDashboard();
+      switchPhase('score');
+      say('#msg', `Evaluating fit for ${targetTitle}`);
     };
   });
 }
@@ -1031,8 +1149,12 @@ async function initAuth() {
 
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', () => {
+  updatePhaseStates();
+  switchPhase('diagnostic');
   initAuth();
 });
 if (document.readyState !== 'loading') {
+  updatePhaseStates();
+  switchPhase('diagnostic');
   initAuth();
 }

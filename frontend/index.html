@@ -36,7 +36,7 @@
       <!-- Navigation Links -->
       <nav class="sidebar-nav">
         <div class="nav-group-label">Candidate Workbench</div>
-        <button class="sidebar-nav-item active" data-view="cand" data-section="section-diagnostic" type="button">
+        <button class="sidebar-nav-item active" data-phase="diagnostic" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
@@ -47,7 +47,7 @@
           <span>Resume Diagnostic</span>
         </button>
 
-        <button class="sidebar-nav-item" data-view="cand" data-section="section-score" type="button">
+        <button class="sidebar-nav-item" data-phase="score" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M12 6v6l4 2"></path>
@@ -55,14 +55,14 @@
           <span>Match Fit & ATS</span>
         </button>
 
-        <button class="sidebar-nav-item" data-view="cand" data-section="section-predictions" type="button">
+        <button class="sidebar-nav-item" data-phase="predictions" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
           </svg>
           <span>Best-Fit Roles</span>
         </button>
 
-        <button class="sidebar-nav-item" data-view="cand" data-section="section-study-hub" type="button">
+        <button class="sidebar-nav-item" data-phase="study-hub" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
             <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
@@ -70,7 +70,7 @@
           <span>Study Tutorials</span>
         </button>
 
-        <button class="sidebar-nav-item" data-view="cand" data-section="section-open-roles" type="button">
+        <button class="sidebar-nav-item" data-phase="open-roles" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
@@ -78,8 +78,18 @@
           <span>Live Job Feeds</span>
         </button>
 
+        <div class="nav-group-label">Intelligence</div>
+        <button class="sidebar-nav-item" data-phase="insights" type="button">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Skill Demand</span>
+        </button>
+
         <div class="nav-group-label">Recruiter & Team</div>
-        <button class="sidebar-nav-item" data-view="rec" type="button">
+        <button class="sidebar-nav-item" data-phase="recruiter" type="button">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -87,16 +97,6 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
           <span>Recruiter Screening</span>
-        </button>
-
-        <div class="nav-group-label">Intelligence</div>
-        <button class="sidebar-nav-item" data-view="cand" data-section="section-insights" type="button">
-          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          <span>Skill Demand</span>
         </button>
       </nav>
 
@@ -178,10 +178,15 @@
         </div>
       </header>
 
-      <!-- Candidate Diagnostic Pane -->
-      <main id="cand" class="workbench-pane">
+      <!-- Hidden Proxies for legacy DOM selectors -->
+      <div id="cand" hidden style="display:none;"></div>
+      <div id="rec" hidden style="display:none;"></div>
+      <div id="out" hidden style="display:none;"></div>
+
+      <!-- Phase 1: Resume Diagnostic & Upload -->
+      <main class="workbench-pane app-phase active" id="phase-diagnostic">
         <header class="section-header">
-          <div class="tag-pill">Developer & Engineering Career Tooling · 100% Free & Open</div>
+          <div class="tag-pill">Phase 1 · Source Ingestion & Target Alignment</div>
           <h1>Evidence-Based Resume & Role Diagnostic</h1>
           <p>Analyze ATS structure, extract validated technical skills, discover matched open roles, and generate missing-skill study tutorials with zero paywalls.</p>
         </header>
@@ -288,133 +293,296 @@
           </div>
         </div>
 
-        <!-- Output Dashboard (Hidden until successfully analyzed) -->
-        <div id="out" hidden>
-          <!-- Explicit Resume Quality Warnings (for weak or partial content) -->
-          <div id="resume-warnings-card" class="glass-card resume-warnings-banner" hidden>
-            <div class="warnings-banner-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-            </div>
-            <div class="warnings-banner-body">
-              <strong class="warnings-banner-title">Resume Content Notice</strong>
-              <ul id="resume-warnings-list" class="warnings-list"></ul>
-            </div>
+        <!-- Explicit Resume Quality Warnings (for weak or partial content) -->
+        <div id="resume-warnings-card" class="glass-card resume-warnings-banner" hidden>
+          <div class="warnings-banner-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
           </div>
+          <div class="warnings-banner-body">
+            <strong class="warnings-banner-title">Resume Content Notice</strong>
+            <ul id="resume-warnings-list" class="warnings-list"></ul>
+          </div>
+        </div>
 
-          <!-- Match Score & Diagnostics Grid -->
-          <section class="diagnostic-grid-2col" id="section-score">
-            <!-- Left Column: Match Metrics & ATS -->
-            <div class="column-stack">
-              <!-- Match Score Overview Card -->
-              <div class="glass-card score-overview-card card-entrance">
-                <div class="card-title-row">
-                  <h3>Role Match Fit</h3>
-                  <span id="method" class="engine-badge">TF-IDF / Neural</span>
-                </div>
-                <div class="radial-score-container">
-                  <svg class="ring" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="52" class="ring-track"/>
-                    <circle id="arc" cx="60" cy="60" r="52" class="ring-arc"/>
-                  </svg>
-                  <div class="score-center-text">
-                    <span class="score-number" id="score">0</span>
-                    <span class="score-denom">/ 100</span>
-                  </div>
-                </div>
-                <div id="jobname" class="target-job-title">Backend Engineer</div>
-                <div class="score-breakdown-bars" id="bars"></div>
-              </div>
+        <!-- Diagnostic Summary Banner (visible after successful analysis) -->
+        <div id="diagnostic-summary-card" class="glass-card diagnostic-summary-banner" hidden>
+          <div class="summary-banner-top">
+            <span class="badge-neutral" style="background: rgba(37, 99, 235, 0.1); color: var(--accent); font-weight: 700;">✓ Diagnostic Complete</span>
+            <h3>Alignment Score: <strong id="summary-score-val">0</strong>/100 · <span id="summary-role-name">Target Role</span></h3>
+          </div>
+          <p>Your resume has been parsed and scored. Switch to any dedicated analysis phase below or using the left navigation bar:</p>
+          <div class="summary-nav-chips">
+            <button class="btn btn-sm btn-primary" data-goto-phase="score" type="button">📊 View Match Fit & ATS ➔</button>
+            <button class="btn btn-sm btn-ghost" data-goto-phase="predictions" type="button">🎯 View Best-Fit Roles ➔</button>
+            <button class="btn btn-sm btn-ghost" data-goto-phase="study-hub" type="button">📺 View Study Tutorials ➔</button>
+            <button class="btn btn-sm btn-ghost" data-goto-phase="open-roles" type="button">💼 View Live Job Feeds ➔</button>
+          </div>
+        </div>
 
-              <!-- ATS Screening Card -->
-              <div class="glass-card ats-card card-entrance">
-                <div class="card-title-row">
-                  <h3>ATS Parser Strength</h3>
-                  <span class="score-tag" id="ats">0/100</span>
-                </div>
-                <p class="card-hint">Calculated across contact integrity, section headers, quantifiable impact, and parser readability.</p>
-                <ul id="tips" class="ats-tips-list"></ul>
-                <div class="card-footer-action">
-                  <button class="btn btn-ghost btn-sm" id="rew" type="button">Run Rule-Based Bullet Optimizer</button>
-                </div>
-                <div id="rewout" class="rewrite-results" hidden></div>
-              </div>
-            </div>
-
-            <!-- Right Column: Evidence & Skill Gaps -->
-            <div class="column-stack">
-              <!-- Evidence in Resume Card -->
-              <div class="glass-card evidence-card card-entrance">
-                <div class="card-title-row">
-                  <h3>Extracted Resume Evidence</h3>
-                  <div class="legend-row">
-                    <span class="legend-item"><i class="hit">matched</i> Role Skills</span>
-                    <span class="legend-item"><i class="oth">other</i> Recognized Skills</span>
-                  </div>
-                </div>
-                <div id="doc" class="doc-viewer"></div>
-              </div>
-
-              <!-- Missing Skills -> YouTube Study Hub -->
-              <div class="glass-card study-hub-card card-entrance" id="section-study-hub">
-                <div class="card-title-row">
-                  <h3>Skill Gaps & YouTube Study Hub</h3>
-                  <span class="badge-neutral">Zero Quota Exhaustion / Free Fallback</span>
-                </div>
-                <p class="card-hint">Targeted technical tutorials and project walkthroughs for skills missing from your resume:</p>
-                <div id="study-links-container" class="study-links-grid"></div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Auto-Predicted Roles Section -->
-          <section class="glass-card predictive-roles-section card-entrance" id="section-predictions">
-            <div class="section-heading-row">
-              <div>
-                <h2 class="section-title">Predicted Best-Fitting Roles</h2>
-                <p class="section-sub">Ranked across verified technical career tracks based on your resume's skill overlap, semantic keywords, and experience profile. Click any role to run targeted diagnostics.</p>
-              </div>
-              <div class="btn-group">
-                <button class="btn btn-sm btn-filter on" id="btn-top-5" type="button">Top 5</button>
-                <button class="btn btn-sm btn-filter" id="btn-top-10" type="button">Top 10</button>
-              </div>
-            </div>
-            <div id="predicted-roles-grid" class="roles-grid"></div>
-          </section>
-
-          <!-- Matching Open Roles (Live Remote/On-site from Free APIs) -->
-          <section class="glass-card open-roles-section card-entrance" id="section-open-roles">
-            <div class="section-heading-row">
-              <div>
-                <h2 class="section-title">Matching Open Roles</h2>
-                <p class="section-sub">Live positions indexed via free public job feeds (Remotive / Arbeitnow / SQLite Cache). Scored against your resume with direct listing links.</p>
-              </div>
-              <button class="btn btn-ghost btn-sm" id="refresh-open-roles" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                Refresh Open Roles
-              </button>
-            </div>
-            <div id="open-roles-grid" class="open-roles-grid"></div>
-          </section>
-
-          <!-- Market Insights SQL View -->
-          <section class="glass-card insights-section card-entrance" id="section-insights">
-            <div class="card-title-row">
-              <h3>Market Skill Demand (Local SQLite Analytics)</h3>
-              <span class="badge-neutral" id="insight-count">0 Resumes Analyzed</span>
-            </div>
-            <div id="ins" class="insights-bar-list"></div>
-          </section>
+        <div class="phase-nav-footer">
+          <span></span>
+          <button class="btn btn-primary btn-sm" data-goto-phase="score" type="button">Next: Match Fit & ATS ▶</button>
         </div>
       </main>
 
-      <!-- Recruiter Screening Pane -->
-      <main id="rec" class="workbench-pane" hidden>
+      <!-- Phase 2: Role Match Fit & ATS Screening -->
+      <main class="workbench-pane app-phase" id="phase-score" hidden>
         <header class="section-header">
-          <div class="tag-pill">DEI Blind Screening & Stack Evaluation</div>
+          <div class="tag-pill">Phase 2 · Alignment Metrics & ATS Analysis</div>
+          <h1>Role Match Fit & ATS Screening</h1>
+          <p>Multi-dimensional scoring combining exact technical skill overlap, TF-IDF cosine similarity, and ATS parser readability.</p>
+        </header>
+
+        <!-- Empty State -->
+        <div class="glass-card phase-empty-state" id="empty-phase-score">
+          <div class="empty-state-icon">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 6v6l4 2"></path>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">No Active Resume Analysis</h3>
+          <p class="empty-state-desc">Upload your resume in the Diagnostic phase or run an instant test using our sample engineering resume to view your ATS score and skill fit breakdown.</p>
+          <div class="empty-state-actions">
+            <button class="btn btn-primary" data-goto-phase="diagnostic" type="button">Go to Resume Diagnostic</button>
+            <button class="btn btn-ghost btn-load-sample-instant" type="button">⚡ Load Sample & Analyze</button>
+          </div>
+        </div>
+
+        <!-- Content Grid (Populated when analysisData is present) -->
+        <div id="content-phase-score" class="diagnostic-grid-2col" hidden>
+          <!-- Left Column: Match Metrics & ATS -->
+          <div class="column-stack">
+            <!-- Match Score Overview Card -->
+            <div class="glass-card score-overview-card card-entrance">
+              <div class="card-title-row">
+                <h3>Role Match Fit</h3>
+                <span id="method" class="engine-badge">TF-IDF / Neural</span>
+              </div>
+              <div class="radial-score-container">
+                <svg class="ring" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="52" class="ring-track"/>
+                  <circle id="arc" cx="60" cy="60" r="52" class="ring-arc"/>
+                </svg>
+                <div class="score-center-text">
+                  <span class="score-number" id="score">0</span>
+                  <span class="score-denom">/ 100</span>
+                </div>
+              </div>
+              <div id="jobname" class="target-job-title">Backend Engineer</div>
+              <div class="score-breakdown-bars" id="bars"></div>
+            </div>
+
+            <!-- ATS Screening Card -->
+            <div class="glass-card ats-card card-entrance">
+              <div class="card-title-row">
+                <h3>ATS Parser Strength</h3>
+                <span class="score-tag" id="ats">0/100</span>
+              </div>
+              <p class="card-hint">Calculated across contact integrity, section headers, quantifiable impact, and parser readability.</p>
+              <ul id="tips" class="ats-tips-list"></ul>
+              <div class="card-footer-action">
+                <button class="btn btn-ghost btn-sm" id="rew" type="button">Run Rule-Based Bullet Optimizer</button>
+              </div>
+              <div id="rewout" class="rewrite-results" hidden></div>
+            </div>
+          </div>
+
+          <!-- Right Column: Extracted Resume Evidence & Missing Skills Quick Jump -->
+          <div class="column-stack">
+            <!-- Evidence in Resume Card -->
+            <div class="glass-card evidence-card card-entrance">
+              <div class="card-title-row">
+                <h3>Extracted Resume Evidence</h3>
+                <div class="legend-row">
+                  <span class="legend-item"><i class="hit">matched</i> Role Skills</span>
+                  <span class="legend-item"><i class="oth">other</i> Recognized Skills</span>
+                </div>
+              </div>
+              <div id="doc" class="doc-viewer"></div>
+            </div>
+
+            <!-- Missing Skill Gaps Summary Card -->
+            <div class="glass-card gaps-summary-card card-entrance">
+              <div class="card-title-row">
+                <h3>Missing Skill Gaps</h3>
+                <span class="badge-neutral" id="gaps-count-badge">0 Gaps</span>
+              </div>
+              <p class="card-hint">Required skills for this role absent from your resume:</p>
+              <div id="gaps-tags-summary" class="tag-list" style="margin-bottom: 16px;"></div>
+              <button class="btn btn-primary btn-sm btn-block" data-goto-phase="study-hub" type="button">
+                📺 Open YouTube Study Hub For These Skills ➔
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="diagnostic" type="button">◀ Back to Diagnostic</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="predictions" type="button">Next: Best-Fit Roles ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 3: Auto-Predicted Roles -->
+      <main class="workbench-pane app-phase" id="phase-predictions" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Phase 3 · Career Trajectory Prediction</div>
+          <h1>Predicted Best-Fitting Roles</h1>
+          <p>Ranked across verified technical career tracks based on your resume's skill overlap, semantic keywords, and experience profile. Click any role to run targeted diagnostics.</p>
+        </header>
+
+        <!-- Empty State -->
+        <div class="glass-card phase-empty-state" id="empty-phase-predictions">
+          <div class="empty-state-icon">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Awaiting Resume Input</h3>
+          <p class="empty-state-desc">Run a diagnostic to predict the top 5 or 10 engineering roles best matched to your skill profile.</p>
+          <div class="empty-state-actions">
+            <button class="btn btn-primary" data-goto-phase="diagnostic" type="button">Go to Resume Diagnostic</button>
+            <button class="btn btn-ghost btn-load-sample-instant" type="button">⚡ Load Sample & Analyze</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div id="content-phase-predictions" class="glass-card predictive-roles-section" hidden>
+          <div class="section-heading-row">
+            <div>
+              <h2 class="section-title">Ranked Role Matches</h2>
+              <p class="section-sub">Click any role to recalculate target alignment, missing skills, and live job postings.</p>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-filter on" id="btn-top-5" type="button">Top 5</button>
+              <button class="btn btn-sm btn-filter" id="btn-top-10" type="button">Top 10</button>
+            </div>
+          </div>
+          <div id="predicted-roles-grid" class="roles-grid"></div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="score" type="button">◀ Match Fit & ATS</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="study-hub" type="button">Next: Study Tutorials ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 4: Missing Skills -> YouTube Study Hub -->
+      <main class="workbench-pane app-phase" id="phase-study-hub" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Phase 4 · Upskilling & Gap Remediation</div>
+          <h1>Skill Gaps & YouTube Study Hub</h1>
+          <p>Targeted technical tutorials, project walkthroughs, and crash courses for required skills missing from your resume.</p>
+        </header>
+
+        <!-- Empty State -->
+        <div class="glass-card phase-empty-state" id="empty-phase-study-hub">
+          <div class="empty-state-icon">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
+              <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">No Missing Skills Identified Yet</h3>
+          <p class="empty-state-desc">Evaluate your resume against a target role to automatically surface missing technical skills and free YouTube study roadmaps.</p>
+          <div class="empty-state-actions">
+            <button class="btn btn-primary" data-goto-phase="diagnostic" type="button">Go to Resume Diagnostic</button>
+            <button class="btn btn-ghost btn-load-sample-instant" type="button">⚡ Load Sample & Analyze</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div id="content-phase-study-hub" class="glass-card study-hub-card" hidden>
+          <div class="card-title-row">
+            <h3>Targeted Missing Skill Roadmap</h3>
+            <span class="badge-neutral">SQLite Cached · Zero Quota Exhaustion</span>
+          </div>
+          <p class="card-hint">Curated engineering tutorials with video previews, direct watch links, and search queries:</p>
+          <div id="study-links-container" class="study-links-grid"></div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="predictions" type="button">◀ Best-Fit Roles</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="open-roles" type="button">Next: Live Job Feeds ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 5: Matching Open Roles (Live Remote/On-site from Free APIs) -->
+      <main class="workbench-pane app-phase" id="phase-open-roles" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Phase 5 · Opportunity Matching</div>
+          <h1>Matching Open Positions</h1>
+          <p>Live positions indexed via free public job feeds (Remotive / Arbeitnow / SQLite Cache). Scored against your resume with direct listing links.</p>
+        </header>
+
+        <!-- Empty State -->
+        <div class="glass-card phase-empty-state" id="empty-phase-open-roles">
+          <div class="empty-state-icon">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Awaiting Target Role Alignment</h3>
+          <p class="empty-state-desc">Run a diagnostic on your resume to query live remote and on-site engineering jobs matching your background.</p>
+          <div class="empty-state-actions">
+            <button class="btn btn-primary" data-goto-phase="diagnostic" type="button">Go to Resume Diagnostic</button>
+            <button class="btn btn-ghost btn-load-sample-instant" type="button">⚡ Load Sample & Analyze</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div id="content-phase-open-roles" class="glass-card open-roles-section" hidden>
+          <div class="section-heading-row">
+            <div>
+              <h2 class="section-title">Live Matching Roles</h2>
+              <p class="section-sub">Scored against your resume's technical skills with direct application links.</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="refresh-open-roles" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Refresh Open Roles
+            </button>
+          </div>
+          <div id="open-roles-grid" class="open-roles-grid"></div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="study-hub" type="button">◀ Study Tutorials</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="insights" type="button">Next: Skill Demand ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 6: Market Insights SQL View -->
+      <main class="workbench-pane app-phase" id="phase-insights" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Market Intelligence · SQLite Analytics</div>
+          <h1>Market Skill Demand & Analytics</h1>
+          <p>Aggregate distribution of top technical skills across all indexed resumes and industry role standards.</p>
+        </header>
+
+        <div class="glass-card insights-section">
+          <div class="card-title-row">
+            <h3>Top In-Demand Technical Skills</h3>
+            <span class="badge-neutral" id="insight-count">0 Resumes Analyzed</span>
+          </div>
+          <p class="card-hint">Real-time frequency metrics derived from analyzed candidate cohorts and role benchmarks:</p>
+          <div id="ins" class="insights-bar-list"></div>
+        </div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="open-roles" type="button">◀ Live Job Feeds</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="recruiter" type="button">Next: Recruiter Screening ▶</button>
+        </div>
+      </main>
+
+      <!-- Phase 7: Recruiter Screening Pane -->
+      <main class="workbench-pane app-phase" id="phase-recruiter" hidden>
+        <header class="section-header">
+          <div class="tag-pill">Recruiter Mode · Blind Screening & Cohort Ranking</div>
           <h1>Rank Candidate Cohort Against Job Description</h1>
           <p>Evaluate multiple candidates simultaneously with automated blind screening to eliminate demographic bias.</p>
         </header>
@@ -456,6 +624,11 @@
         </div>
 
         <div id="rout" class="glass-card recruiter-table-card" hidden></div>
+
+        <div class="phase-nav-footer">
+          <button class="btn btn-ghost btn-sm" data-goto-phase="insights" type="button">◀ Market Skill Demand</button>
+          <button class="btn btn-primary btn-sm" data-goto-phase="diagnostic" type="button">Back to Diagnostic ▶</button>
+        </div>
       </main>
     </div>
   </div>
