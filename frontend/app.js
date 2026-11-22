@@ -88,11 +88,17 @@ function resetPreviousResults() {
   if ($('#gaps-count-badge')) $('#gaps-count-badge').textContent = '0 Gaps';
   if ($('#gaps-tags-summary')) $('#gaps-tags-summary').innerHTML = '';
 
-  // Clear study hub, portfolio projects, docs, and skill tracker
+  // Clear role resolution chip
+  if ($('#role-resolution-chip')) $('#role-resolution-chip').hidden = true;
+
+  // Clear study hub, portfolio projects, docs, skill proficiencies, and skill tracker
   if ($('#study-links-container')) $('#study-links-container').innerHTML = '';
   if ($('#portfolio-projects-container')) $('#portfolio-projects-container').innerHTML = '';
   if ($('#official-docs-container')) $('#official-docs-container').innerHTML = '';
   if ($('#skill-tracker-container')) $('#skill-tracker-container').innerHTML = '';
+  if ($('#skill-proficiency-matrix')) $('#skill-proficiency-matrix').innerHTML = '';
+  if ($('#paced-roadmap-container')) $('#paced-roadmap-container').innerHTML = '';
+  if ($('#roadmap-summary-headline')) $('#roadmap-summary-headline').textContent = 'Career Roadmap: Aligning to Target Role';
   if ($('#tracked-skills-count')) $('#tracked-skills-count').textContent = '0';
   if ($('#tracker-summary-badge')) $('#tracker-summary-badge').textContent = '0 Tracked';
 
@@ -275,12 +281,81 @@ $('#mode-predict').onclick = () => {
   resetPreviousResults();
 };
 
-// Clear previous state when target role text is edited
-$('#jd').addEventListener('input', () => {
-  if (analysisData) {
-    resetPreviousResults();
-    say('#msg', 'Target role modified. Click "Run Diagnostic" to re-evaluate.');
+// Clear previous state when target role text is edited & trigger fuzzy resolution
+let roleDebounceTimer = null;
+let lastResolvedTitle = '';
+
+function hideRoleResolutionChip() {
+  const chip = $('#role-resolution-chip');
+  if (chip) chip.hidden = true;
+}
+
+async function checkRoleResolution(query) {
+  const trimmed = (query || '').trim();
+  if (trimmed.length < 3) {
+    hideRoleResolutionChip();
+    return;
   }
+
+  try {
+    const fd = new FormData();
+    fd.append('role_query', trimmed);
+    const res = await fetch('/api/roles/resolve', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.matched && data.resolved_title) {
+      const cleanInput = trimmed.toLowerCase();
+      const cleanResolved = data.resolved_title.toLowerCase();
+      lastResolvedTitle = data.resolved_title;
+
+      if (cleanInput !== cleanResolved && data.confidence >= 0.60) {
+        const chip = $('#role-resolution-chip');
+        const text = $('#role-resolution-text');
+        if (text) text.textContent = `${data.resolved_title} (${Math.round(data.confidence * 100)}% match)`;
+        if (chip) chip.hidden = false;
+        return;
+      }
+    }
+    hideRoleResolutionChip();
+  } catch (_) {
+    hideRoleResolutionChip();
+  }
+}
+
+if ($('#jd')) {
+  $('#jd').addEventListener('input', () => {
+    if (analysisData) {
+      resetPreviousResults();
+      say('#msg', 'Target role modified. Click "Run Diagnostic" to re-evaluate.');
+    }
+    const val = $('#jd').value;
+    clearTimeout(roleDebounceTimer);
+    roleDebounceTimer = setTimeout(() => {
+      checkRoleResolution(val);
+    }, 280);
+  });
+}
+
+if ($('#btn-apply-resolved-role')) {
+  $('#btn-apply-resolved-role').onclick = () => {
+    if (lastResolvedTitle && $('#jd')) {
+      $('#jd').value = lastResolvedTitle;
+      hideRoleResolutionChip();
+      say('#msg', `Target aligned to: ${lastResolvedTitle}`);
+    }
+  };
+}
+
+// Wire Upcoming In-Demand Role Pills
+$$('.btn-role-pill').forEach(btn => {
+  btn.onclick = () => {
+    const roleTitle = btn.dataset.title;
+    if ($('#jd')) {
+      $('#jd').value = roleTitle;
+      hideRoleResolutionChip();
+      say('#msg', `Target aligned to: ${roleTitle}`);
+    }
+  };
 });
 
 // Predict Selector (Top 5 vs Top 10)
@@ -594,7 +669,9 @@ function renderDashboard() {
   docHtml += esc(currentResumeText.slice(cursor));
   $('#doc').innerHTML = docHtml;
 
-  // 4. Missing Skills Study Hub, Portfolio Projects, Docs, and Skill Tracker
+  // 4. Time-Paced Roadmap, Skill Proficiencies, Study Hub, Portfolio Projects, Docs, and Skill Tracker
+  renderPacedRoadmap(analysisData.paced_roadmap || null);
+  renderSkillProficiencies(analysisData.skill_proficiencies || []);
   renderStudyHub(analysisData.study_links || []);
   renderPortfolioProjects(analysisData.portfolio_projects || []);
   renderOfficialDocs(analysisData.official_docs || []);
@@ -609,7 +686,7 @@ function renderDashboard() {
 // ============================================================================
 
 function switchRoadmapSubtab(tabName) {
-  const tabs = ['youtube', 'projects', 'docs', 'tracker'];
+  const tabs = ['paced', 'youtube', 'projects', 'docs', 'tracker'];
   tabs.forEach(t => {
     const btn = $(`#subtab-${t}`);
     const panel = $(`#panel-${t}`);
@@ -631,10 +708,127 @@ function switchRoadmapSubtab(tabName) {
   }
 }
 
+if ($('#subtab-paced')) $('#subtab-paced').onclick = () => switchRoadmapSubtab('paced');
 if ($('#subtab-youtube')) $('#subtab-youtube').onclick = () => switchRoadmapSubtab('youtube');
 if ($('#subtab-projects')) $('#subtab-projects').onclick = () => switchRoadmapSubtab('projects');
 if ($('#subtab-docs')) $('#subtab-docs').onclick = () => switchRoadmapSubtab('docs');
 if ($('#subtab-tracker')) $('#subtab-tracker').onclick = () => switchRoadmapSubtab('tracker');
+
+// Render Candidate Resume Skill-Level Detection Matrix
+function renderSkillProficiencies(proficiencies) {
+  const container = $('#skill-proficiency-matrix');
+  if (!container) return;
+  if (!proficiencies || !proficiencies.length) {
+    container.innerHTML = '<p class="card-hint">No technical skills detected yet in resume.</p>';
+    return;
+  }
+
+  const appliedCount = proficiencies.filter(p => p.level === 'applied').length;
+  const foundCount = proficiencies.length - appliedCount;
+  if ($('#proficiency-stats-badge')) {
+    $('#proficiency-stats-badge').textContent = `${appliedCount} Applied in Projects · ${foundCount} Foundational`;
+  }
+
+  container.innerHTML = proficiencies.map(p => {
+    const isApplied = p.level === 'applied';
+    const badgeHtml = isApplied
+      ? `<span class="proficiency-badge badge-applied">✓ Applied in Projects</span>`
+      : `<span class="proficiency-badge badge-foundational">Foundational / Listed</span>`;
+
+    return `
+      <div class="proficiency-card">
+        <div>
+          <div class="proficiency-card-header">
+            <span class="proficiency-skill-name">${esc(p.skill)}</span>
+            ${badgeHtml}
+          </div>
+          <p class="proficiency-evidence">"${esc(p.evidence)}"</p>
+        </div>
+        <div class="proficiency-card-footer">
+          <span class="proficiency-cat-tag">${esc(p.category || 'General')}</span>
+          <span class="proficiency-mention-count">${p.occurrences} mention${p.occurrences > 1 ? 's' : ''}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Render Time-Paced Chronological Next-Skill Roadmap
+function renderPacedRoadmap(roadmap) {
+  const container = $('#paced-roadmap-container');
+  if (!container) return;
+  if (!roadmap) {
+    container.innerHTML = '<p class="card-hint">Select a target role to generate a time-paced skill roadmap.</p>';
+    return;
+  }
+
+  if ($('#roadmap-summary-headline')) $('#roadmap-summary-headline').textContent = roadmap.headline || `Career Roadmap: ${roadmap.target_role}`;
+  if ($('#roadmap-total-weeks')) $('#roadmap-total-weeks').textContent = roadmap.total_weeks || '4 - 6 Weeks';
+  if ($('#roadmap-total-hours')) $('#roadmap-total-hours').textContent = roadmap.total_hours || '30 - 45 hrs';
+
+  const phases = roadmap.phases || [];
+  container.innerHTML = phases.map(phase => {
+    const stepCount = (phase.skills || []).length;
+    const stepsHtml = (phase.steps || []).map(step => `
+      <div class="roadmap-step-item">
+        <div class="step-num-badge">${step.step_number}</div>
+        <div class="step-main">
+          <div class="step-title-row">
+            <span class="step-skill-title">${esc(step.skill)}</span>
+            <span class="step-time-badge">⏱️ ${esc(step.time_estimate)}</span>
+          </div>
+          <p class="step-milestone-desc">${esc(step.milestone)}</p>
+          <div class="step-next-tag">Next Milestone: ${esc(step.what_to_learn_next)}</div>
+          <div class="step-actions-row">
+            <a href="${esc(step.youtube_search_url)}" target="_blank" rel="noopener noreferrer" class="btn-step-action btn-step-youtube">
+              ▶ Video Tutorial
+            </a>
+            <a href="${esc(step.doc_url)}" target="_blank" rel="noopener noreferrer" class="btn-step-action btn-step-doc">
+              📖 ${esc(step.doc_title || 'Official Guide')}
+            </a>
+            <button class="btn-step-action btn-step-track btn-track-skill" data-skill="${esc(step.skill)}" data-status="to_learn" type="button">
+              🎯 Track in My Skills
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="roadmap-phase-card">
+        <div class="roadmap-phase-header">
+          <div class="phase-title-group">
+            <span class="phase-badge-pill">Phase ${phase.phase_index}</span>
+            <h4 class="phase-title-text">${esc(phase.title)}</h4>
+          </div>
+          <span class="phase-time-pill">${esc(phase.duration)} (${esc(phase.hours)}) · ${stepCount} Skill${stepCount !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="phase-milestone-text">🎯 <strong>Core Competency Goal:</strong> ${esc(phase.milestone)}</div>
+        <div class="roadmap-step-list">
+          ${stepsHtml || '<div class="card-hint">No gaps detected in this phase for your background!</div>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire track buttons in paced roadmap
+  container.querySelectorAll('.btn-track-skill').forEach(btn => {
+    btn.onclick = () => {
+      const skill = btn.dataset.skill;
+      setSkillStatus(skill, 'to_learn');
+      btn.textContent = '✓ Added to Tracker!';
+      btn.style.background = 'var(--pass-bg)';
+      btn.style.borderColor = 'var(--pass)';
+      btn.style.color = 'var(--pass)';
+      setTimeout(() => {
+        btn.textContent = '🎯 Track in My Skills';
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }, 2000);
+    };
+  });
+}
 
 // Render Missing Skills YouTube Study Hub
 function renderStudyHub(links) {

@@ -1,5 +1,5 @@
 """NLP + ML engine: parsing, skill extraction, hybrid matching, ATS scoring, and interview prep."""
-import io, re, os, pathlib, logging, datetime, urllib.parse
+import io, re, os, pathlib, logging, datetime, urllib.parse, difflib
 from typing import List, Dict, Tuple, Set, Any
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
@@ -332,32 +332,397 @@ def skill_evidence(text: str, skills: List[str], limit: int = 6) -> List[Dict[st
     return evidence
 
 
-def resolve_role_profile(query: str, jobs: List[Dict[str, Any]]):
-    stop_words = {"a", "an", "as", "be", "become", "career", "experience", "for", "i", "in", "job", "looking", "my", "of", "role", "the", "to", "want", "with", "year", "years", "yrs"}
-    role_aliases = {"developer": "technical_role", "engineer": "technical_role", "programmer": "technical_role"}
+ROLE_SYNONYMS = {
+    "soft": "software",
+    "eng": "engineer",
+    "engr": "engineer",
+    "dev": "developer",
+    "prog": "programmer",
+    "swe": "software engineer",
+    "sde": "software engineer",
+    "backend": "backend",
+    "back end": "backend",
+    "frontend": "frontend",
+    "front end": "frontend",
+    "fullstack": "full stack",
+    "full stack": "full stack",
+    "ml": "machine learning",
+    "ai": "machine learning",
+    "ds": "data scientist",
+    "da": "data analyst",
+    "devops": "devops",
+    "dev ops": "devops",
+    "sre": "devops",
+    "cloud": "devops",
+}
 
-    def terms(value: str) -> Set[str]:
-        normalized = re.sub(r"\bback[\s-]+end\b", "backend", value.lower())
-        normalized = re.sub(r"\bfront[\s-]+end\b", "frontend", normalized)
-        words = re.findall(r"[a-z0-9+#]+", normalized)
+def resolve_role_profile_fuzzy(query: str, jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Resolves misspelled, abbreviated, or informal role inputs (e.g. 'soft engineer', 'software eng', 'swe')
+    to canonical industry roles with confidence scoring and matching details.
+    """
+    raw_query = (query or "").strip()
+    if not raw_query:
+        return {"matched": False, "resolved_title": "", "job": None, "confidence": 0.0, "match_type": "none", "original_query": ""}
+
+    cleaned = re.sub(r"[^\w\s-]", " ", raw_query.lower())
+    cleaned = re.sub(r"\bback[\s-]+end\b", "backend", cleaned)
+    cleaned = re.sub(r"\bfront[\s-]+end\b", "frontend", cleaned)
+    cleaned = re.sub(r"\bfull[\s-]+stack\b", "full stack", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    # 1. Direct whole-query abbreviation / acronym alias check
+    if cleaned in ROLE_SYNONYMS:
+        target_name = ROLE_SYNONYMS[cleaned].lower()
+        for j in jobs:
+            if target_name in j["title"].lower() or j["title"].lower() in target_name:
+                return {
+                    "matched": True,
+                    "resolved_title": j["title"],
+                    "job": j,
+                    "confidence": 0.98,
+                    "match_type": "alias_exact",
+                    "original_query": raw_query
+                }
+
+    # 2. Token expansion (e.g. 'soft engineer' -> 'software engineer')
+    tokens = cleaned.split()
+    expanded_tokens = [ROLE_SYNONYMS.get(t, t) for t in tokens]
+    expanded_query = " ".join(expanded_tokens)
+
+    # 3. Exact match against known jobs
+    for j in jobs:
+        if j["title"].lower() == expanded_query:
+            return {
+                "matched": True,
+                "resolved_title": j["title"],
+                "job": j,
+                "confidence": 1.0,
+                "match_type": "exact",
+                "original_query": raw_query
+            }
+
+    # 4. Multi-metric similarity scoring: Token Jaccard + Domain Term Matching + SequenceMatcher
+    generic_role_terms = {
+        "developer": "technical_role", "engineer": "technical_role", "programmer": "technical_role",
+        "intern": "technical_role", "specialist": "technical_role", "role": "technical_role"
+    }
+    stop_words = {
+        "a", "an", "as", "be", "become", "career", "experience", "for", "i", "in", "job",
+        "looking", "my", "of", "the", "to", "want", "with", "year", "years", "yrs", "good"
+    }
+
+    filtered_query_tokens = [t for t in expanded_tokens if t not in stop_words and not t.isdigit()]
+    if not filtered_query_tokens:
+        return {"matched": False, "resolved_title": "", "job": None, "confidence": 0.0, "match_type": "none", "original_query": raw_query}
+
+    filtered_query_str = " ".join(filtered_query_tokens)
+    query_norm_terms = {generic_role_terms.get(t, t) for t in filtered_query_tokens}
+    query_domain_terms = {t for t in query_norm_terms if t != "technical_role"}
+
+    best_job = None
+    best_score = 0.0
+    best_match_type = "fuzzy"
+
+    for j in jobs:
+        j_title_clean = j["title"].lower()
+        j_tokens = [t for t in re.findall(r"[a-z0-9+#]+", j_title_clean) if t not in stop_words]
+        j_norm_terms = {generic_role_terms.get(t, t) for t in j_tokens}
+        j_domain_terms = {t for t in j_norm_terms if t != "technical_role"}
+
+        # Token overlap
+        union = query_norm_terms | j_norm_terms
+        token_jaccard = (len(query_norm_terms & j_norm_terms) / len(union)) if union else 0.0
+
+        # Domain term overlap (e.g. 'backend' matches 'backend', 'software' matches 'software')
+        domain_matches = query_domain_terms & j_domain_terms
+        seq_ratio = difflib.SequenceMatcher(None, filtered_query_str, " ".join(j_tokens)).ratio()
+
+        # Check close matches / typo for domain terms (e.g. 'sofware' vs 'software')
+        close_domain_match = False
+        if not domain_matches and query_domain_terms and j_domain_terms:
+            for qt in query_domain_terms:
+                for jt in j_domain_terms:
+                    if difflib.SequenceMatcher(None, qt, jt).ratio() >= 0.80 or (len(qt) >= 4 and jt.startswith(qt)):
+                        close_domain_match = True
+                        break
+
+        if domain_matches:
+            composite = 0.55 * token_jaccard + 0.35 * seq_ratio + 0.20
+            match_type = "domain_overlap"
+        elif close_domain_match:
+            composite = 0.40 * token_jaccard + 0.50 * seq_ratio + 0.15
+            match_type = "fuzzy_typo"
+        elif not query_domain_terms and token_jaccard >= 0.50:
+            # Query was only 'engineer' or 'developer' without domain
+            composite = token_jaccard * 0.45
+            match_type = "generic_role"
+        else:
+            composite = 0.0
+            match_type = "none"
+
+        composite = min(0.99, composite)
+        if composite > best_score:
+            best_score = composite
+            best_job = j
+            best_match_type = match_type
+
+    matched = best_score >= 0.45 and best_job is not None
+    return {
+        "matched": matched,
+        "resolved_title": best_job["title"] if matched else "",
+        "job": best_job if matched else None,
+        "confidence": round(best_score, 2) if matched else round(best_score, 2),
+        "match_type": best_match_type if matched else "none",
+        "original_query": raw_query
+    }
+
+
+def resolve_role_profile(query: str, jobs: List[Dict[str, Any]]):
+    res = resolve_role_profile_fuzzy(query, jobs)
+    return res["job"] if res["matched"] else None
+
+
+def get_top_upcoming_roles(jobs: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """
+    Returns curated top and upcoming in-demand engineering career roles
+    with industry demand signals, average market compensation, and key tech stack.
+    """
+    return [
+        {
+            "id": "software-engineer",
+            "title": "Software Engineer",
+            "demand_tag": "🔥 High Demand · Core Track",
+            "demand_level": "High Volume",
+            "growth_rate": "+18% YoY",
+            "salary_range": "$105k - $155k / yr",
+            "description": "Develop scalable backend services, clean REST APIs, and resilient data processing systems.",
+            "key_skills": ["Python", "Java", "Data Structures", "Algorithms", "SQL", "Git", "REST API", "Docker"],
+            "difficulty": "Beginner to Intermediate"
+        },
+        {
+            "id": "backend-engineer",
+            "title": "Backend Engineer",
+            "demand_tag": "⚡ High Demand · Distributed Systems",
+            "demand_level": "Surging",
+            "growth_rate": "+24% YoY",
+            "salary_range": "$115k - $165k / yr",
+            "description": "Architect high-throughput microservices, optimize SQL queries, and build caching and streaming layers.",
+            "key_skills": ["Python", "FastAPI", "PostgreSQL", "Redis", "Kafka", "Docker", "Kubernetes", "System Design"],
+            "difficulty": "Intermediate to Advanced"
+        },
+        {
+            "id": "full-stack-developer",
+            "title": "Full Stack Developer",
+            "demand_tag": "🚀 Rapid Growth · End-to-End",
+            "demand_level": "Universal",
+            "growth_rate": "+20% YoY",
+            "salary_range": "$100k - $150k / yr",
+            "description": "Build responsive user interfaces combined with robust backend APIs and database operations.",
+            "key_skills": ["React", "TypeScript", "Node.js", "Express", "PostgreSQL", "Tailwind", "REST API", "Git"],
+            "difficulty": "Intermediate"
+        },
+        {
+            "id": "ml-engineer",
+            "title": "Machine Learning Engineer",
+            "demand_tag": "🤖 Next-Gen · Applied AI & MLOps",
+            "demand_level": "Exponential",
+            "growth_rate": "+35% YoY",
+            "salary_range": "$125k - $185k / yr",
+            "description": "Train, fine-tune, and serve deep learning models through low-latency containerized inference microservices.",
+            "key_skills": ["Python", "PyTorch", "scikit-learn", "Pandas", "FastAPI", "Docker", "AWS", "SQL"],
+            "difficulty": "Advanced"
+        },
+        {
+            "id": "devops-engineer",
+            "title": "DevOps Engineer",
+            "demand_tag": "☁️ Cloud Infrastructure · High ROI",
+            "demand_level": "Critical",
+            "growth_rate": "+22% YoY",
+            "salary_range": "$120k - $170k / yr",
+            "description": "Automate container orchestration, cloud provisioning, and continuous deployment pipelines.",
+            "key_skills": ["Docker", "Kubernetes", "AWS", "Linux", "CI/CD", "Terraform", "Git", "Python"],
+            "difficulty": "Intermediate to Advanced"
+        },
+        {
+            "id": "data-scientist",
+            "title": "Data Scientist",
+            "demand_tag": "📊 Intelligence & Predictive Modeling",
+            "demand_level": "Strong",
+            "growth_rate": "+16% YoY",
+            "salary_range": "$110k - $160k / yr",
+            "description": "Extract insights from massive datasets using statistical modeling, regression, and data visualization.",
+            "key_skills": ["Python", "SQL", "Pandas", "NumPy", "Statistics", "Machine Learning", "Data Visualization"],
+            "difficulty": "Intermediate"
+        }
+    ]
+
+
+def detect_skill_proficiencies(text: str, skills: Set[str]) -> List[Dict[str, Any]]:
+    """
+    Estimates candidate proficiency per detected skill:
+    - 'Applied in Projects / Experience': Skill appears in actionable work bullets or has multiple references.
+    - 'Foundational / Mentioned': Skill is listed only in a skills inventory list or mentioned once.
+    """
+    proficiencies = []
+    lines = text.splitlines()
+
+    # Action verbs indicating concrete engineering application
+    action_pattern = re.compile(
+        r"\b(?:built|developed|implemented|designed|created|optimized|architected|engineered|deployed|"
+        r"integrated|configured|automated|reduced|improved|scaled|refactored|launched|managed|wrote|tested)\b",
+        re.I
+    )
+
+    for skill in sorted(skills):
+        pattern = PATTERNS.get(skill)
+        if not pattern:
+            continue
+
+        occurrences = 0
+        applied_bullet = None
+
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if pattern.search(line):
+                occurrences += 1
+                clean_bullet = re.sub(r"^\s*(?:[-*•▪◦‣]|\d+[.)])\s*", "", line).strip()
+                if not is_skill_inventory_line(clean_bullet) and len(clean_bullet) >= 20:
+                    if action_pattern.search(clean_bullet) or len(clean_bullet) >= 35:
+                        if not applied_bullet:
+                            applied_bullet = clean_bullet
+
+        category = SKILL_CATEGORY.get(skill, "General")
+
+        if applied_bullet or occurrences >= 2:
+            snippet = applied_bullet if applied_bullet else f"Referenced {occurrences} times across resume sections."
+            if len(snippet) > 160:
+                snippet = snippet[:157] + "..."
+            proficiencies.append({
+                "skill": skill,
+                "category": category,
+                "level": "applied",
+                "label": "Applied in Projects / Experience",
+                "badge": "Applied in Projects",
+                "occurrences": occurrences,
+                "evidence": snippet,
+                "score": 85
+            })
+        else:
+            proficiencies.append({
+                "skill": skill,
+                "category": category,
+                "level": "foundational",
+                "label": "Foundational / Mentioned",
+                "badge": "Foundational",
+                "occurrences": occurrences,
+                "evidence": "Mentioned in skills summary. Recommend demonstrating in an end-to-end GitHub project with measurable impact.",
+                "score": 50
+            })
+
+    # Sort applied first, then alphabetical
+    proficiencies.sort(key=lambda x: (0 if x["level"] == "applied" else 1, x["skill"]))
+    return proficiencies
+
+
+def build_paced_roadmap(target_role: str, missing_skills: List[str], proficiencies: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Builds an ordered 3-phase pedagogical Next-Skill Roadmap tailored to a target role:
+    Phase 1: Prerequisites & Fundamentals (Languages, Data Structures, Algorithms, SQL, Git)
+    Phase 2: Core Engineering & Systems Architecture (REST APIs, Databases, Caching, Frameworks)
+    Phase 3: Production, CI/CD & Deployment (Docker, Kubernetes, Cloud, CI/CD, Testing)
+    """
+    phase1_skills = []
+    phase2_skills = []
+    phase3_skills = []
+
+    p1_categories = {"Languages", "Practices & Soft Skills"}
+    p3_keywords = {"docker", "kubernetes", "aws", "gcp", "azure", "ci/cd", "linux", "terraform", "ansible", "unit testing", "tdd", "kafka", "pytorch", "deep learning"}
+
+    for skill in missing_skills:
+        s_lower = skill.strip().lower()
+        cat = SKILL_CATEGORY.get(skill, "General")
+
+        if s_lower in p3_keywords or any(k in s_lower for k in ["cloud", "devops", "deploy", "docker", "k8s"]):
+            phase3_skills.append(skill)
+        elif cat in p1_categories or s_lower in {"sql", "git", "python", "java", "c++", "data structures", "algorithms", "html", "css"}:
+            phase1_skills.append(skill)
+        else:
+            phase2_skills.append(skill)
+
+    if not phase1_skills and len(phase2_skills) >= 3:
+        phase1_skills.append(phase2_skills.pop(0))
+
+    def make_phase_steps(skill_list, phase_num, default_weeks, default_hrs, phase_theme, phase_milestone):
+        steps = []
+        for i, s in enumerate(skill_list):
+            q = urllib.parse.quote_plus(f"{s} tutorial for beginners")
+            doc_info = _OFFICIAL_DOCS_CATALOG.get(s.lower(), {})
+            steps.append({
+                "skill": s,
+                "step_number": i + 1,
+                "phase_index": phase_num,
+                "phase_title": phase_theme,
+                "time_estimate": "1 - 2 weeks (~8 - 12 hrs)",
+                "milestone": f"Build practical hands-on proficiency with {s} patterns and idiomatic syntax.",
+                "what_to_learn_next": f"Deepen architectural knowledge of {s} through testing and integration.",
+                "youtube_search_url": f"https://www.youtube.com/results?search_query={q}",
+                "doc_url": doc_info.get("doc_url", f"https://devdocs.io/#q={urllib.parse.quote_plus(s)}"),
+                "doc_title": doc_info.get("doc_title", f"Official {s} Documentation")
+            })
         return {
-            role_aliases.get(word, word)
-            for word in words
-            if word not in stop_words and not word.isdigit()
+            "phase_index": phase_num,
+            "title": phase_theme,
+            "skills": skill_list,
+            "steps": steps,
+            "duration": default_weeks,
+            "hours": default_hrs,
+            "milestone": phase_milestone,
+            "skill_count": len(skill_list)
         }
 
-    query_terms = terms(query)
-    if not query_terms:
-        return None
+    p1 = make_phase_steps(
+        phase1_skills, 1, "2 - 3 Weeks", "15 - 20 hrs",
+        "Phase 1 · Prerequisites & Core Fundamentals",
+        "Master foundational language syntax, data structures, algorithms, and version control hygiene."
+    )
+    p2 = make_phase_steps(
+        phase2_skills, 2, "3 - 4 Weeks", "25 - 35 hrs",
+        "Phase 2 · Core Engineering & Systems Architecture",
+        "Architect clean REST/gRPC API contracts, design relational schemas with indexing, and integrate caching layers."
+    )
+    p3 = make_phase_steps(
+        phase3_skills, 3, "2 - 3 Weeks", "15 - 20 hrs",
+        "Phase 3 · Production, CI/CD & Cloud Deployment",
+        "Containerize services with Docker, automate CI/CD pipeline checks, and deliver resilient cloud workloads."
+    )
 
-    best_job, best_score = None, 0.0
-    for job in jobs:
-        title_terms = terms(job["title"])
-        union = query_terms | title_terms
-        score = len(query_terms & title_terms) / len(union) if union else 0.0
-        if score > best_score:
-            best_job, best_score = job, score
-    return best_job if best_score >= 0.45 else None
+    total_missing = len(missing_skills)
+    if total_missing == 0:
+        total_weeks = "1 - 2 Weeks"
+        total_hours = "10 - 15 hrs"
+        headline = f"Ready for {target_role}! Polish code quality and deploy real-world portfolio capstones."
+    elif total_missing <= 3:
+        total_weeks = "3 - 5 Weeks"
+        total_hours = "25 - 35 hrs"
+        headline = f"Accelerated Roadmap: {total_missing} target skills to reach complete {target_role} alignment."
+    else:
+        total_weeks = "7 - 9 Weeks"
+        total_hours = "55 - 75 hrs"
+        headline = f"Comprehensive Career Roadmap: Master {total_missing} engineering competencies for {target_role}."
+
+    return {
+        "target_role": target_role,
+        "total_skills": total_missing,
+        "total_weeks": total_weeks,
+        "total_hours": total_hours,
+        "weekly_pace": "~6 - 8 hrs / week (Realistic Student Pace)",
+        "headline": headline,
+        "phases": [p1, p2, p3]
+    }
 
 
 def years_of_experience(text: str) -> float:

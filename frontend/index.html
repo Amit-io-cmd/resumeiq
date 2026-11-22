@@ -238,7 +238,32 @@
 
             <div id="target-role-container">
               <label for="jd" class="field-label">Target Role Title or Full Job Description</label>
-              <textarea id="jd" placeholder="e.g. 'Backend Engineer', 'Machine Learning Engineer', or paste the full job posting text to score alignment and extract skill gaps..."></textarea>
+              <textarea id="jd" placeholder="e.g. 'Software Engineer', 'Backend Engineer', 'soft engineer', or paste the full job posting text to score alignment and extract skill gaps..."></textarea>
+              
+              <!-- Real-Time Fuzzy Typo Resolution Chip -->
+              <div id="role-resolution-chip" class="role-resolution-chip" hidden>
+                <div class="resolution-chip-content">
+                  <span class="resolution-badge">⚡ Auto-Resolved</span>
+                  <span class="resolution-text" id="role-resolution-text">Software Engineer (95% match)</span>
+                </div>
+                <button class="btn btn-sm btn-ghost resolution-btn" id="btn-apply-resolved-role" type="button">Use This Role</button>
+              </div>
+
+              <!-- Top & Upcoming In-Demand Roles Quick Picks -->
+              <div class="upcoming-roles-section">
+                <div class="upcoming-roles-header">
+                  <span class="field-label-sm">Top In-Demand Career Roles:</span>
+                  <span class="upcoming-roles-hint">Click any role to align diagnostic</span>
+                </div>
+                <div class="upcoming-roles-strip" id="upcoming-roles-strip">
+                  <button class="btn-role-pill" data-title="Software Engineer" type="button">Software Engineer <span class="pill-hot">🔥</span></button>
+                  <button class="btn-role-pill" data-title="Backend Engineer" type="button">Backend / API <span class="pill-hot">⚡</span></button>
+                  <button class="btn-role-pill" data-title="Full Stack Developer" type="button">Full Stack <span class="pill-hot">🚀</span></button>
+                  <button class="btn-role-pill" data-title="Machine Learning Engineer" type="button">ML & AI <span class="pill-hot">🤖</span></button>
+                  <button class="btn-role-pill" data-title="DevOps Engineer" type="button">DevOps / Cloud <span class="pill-hot">☁️</span></button>
+                  <button class="btn-role-pill" data-title="Data Scientist" type="button">Data Science <span class="pill-hot">📊</span></button>
+                </div>
+              </div>
             </div>
 
             <div id="predict-role-container" class="predict-options-row" hidden>
@@ -509,15 +534,45 @@
           <!-- Roadmap Navigation Subtabs -->
           <div class="roadmap-subtabs-bar">
             <div class="segmented-control">
-              <button class="segment-btn on" id="subtab-youtube" type="button">📺 Video Tutorials</button>
+              <button class="segment-btn on" id="subtab-paced" type="button">⏱️ Time-Paced Roadmap & Skill Levels</button>
+              <button class="segment-btn" id="subtab-youtube" type="button">📺 Video Tutorials</button>
               <button class="segment-btn" id="subtab-projects" type="button">🛠️ Portfolio Projects</button>
               <button class="segment-btn" id="subtab-docs" type="button">📚 Official Docs & Certs</button>
               <button class="segment-btn" id="subtab-tracker" type="button">🎯 My Skill Tracker (<span id="tracked-skills-count">0</span>)</button>
             </div>
           </div>
 
-          <!-- Tab 1: YouTube Tutorials -->
-          <div class="roadmap-panel glass-card study-hub-card active" id="panel-youtube">
+          <!-- Tab 1: Time-Paced Roadmap & Skill Level Detection -->
+          <div class="roadmap-panel glass-card active" id="panel-paced">
+            <!-- Skill Level Diagnostic Matrix -->
+            <div class="card-title-row">
+              <h3>1. Resume Skill-Level Detection</h3>
+              <span class="badge-neutral" id="proficiency-stats-badge">Context & Frequency Analysis</span>
+            </div>
+            <p class="card-hint">Current candidate proficiency estimated from parsed resume project bullets, action verbs, and mention frequency:</p>
+            <div id="skill-proficiency-matrix" class="proficiency-matrix-grid"></div>
+
+            <hr class="section-divider" style="margin: 24px 0; border: none; border-top: 1px solid var(--border-glass);">
+
+            <!-- 3-Phase Time-Paced Curriculum -->
+            <div class="card-title-row">
+              <h3>2. Chronological Next-Skill Roadmap With Time Estimates</h3>
+              <span class="badge-neutral" id="roadmap-time-badge">~6 - 8 hrs / week · Student Pace</span>
+            </div>
+            <div id="roadmap-summary-box" class="roadmap-summary-card">
+              <div class="roadmap-summary-title" id="roadmap-summary-headline">Career Roadmap: Aligning to Target Role</div>
+              <div class="roadmap-summary-meta">
+                <span class="roadmap-meta-item">⏱️ Total Time: <strong id="roadmap-total-weeks">6 - 8 Weeks</strong> (<span id="roadmap-total-hours">45 - 60 hrs</span>)</span>
+                <span class="roadmap-meta-item">🎯 Weekly Target: <strong>~6 - 8 hrs / week</strong></span>
+                <span class="roadmap-meta-item">📚 Structure: <strong>3 Ordered Phases (Fundamentals ➔ Architecture ➔ Cloud)</strong></span>
+              </div>
+            </div>
+
+            <div id="paced-roadmap-container" class="paced-roadmap-timeline"></div>
+          </div>
+
+          <!-- Tab 2: YouTube Tutorials -->
+          <div class="roadmap-panel glass-card study-hub-card" id="panel-youtube" hidden>
             <div class="card-title-row">
               <h3>Targeted Technical Tutorials</h3>
               <span class="badge-neutral">SQLite Cached · Zero Quota Exhaustion</span>

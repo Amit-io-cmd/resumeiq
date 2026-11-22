@@ -244,11 +244,13 @@ async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form
     categories = rest[0] if rest else {}
     matches = sorted((score_job(text, skills, years, j) for j in db.jobs()), key=lambda m: -m["score"])
     custom = None
+    role_resolution = None
     if jd.strip():
         jskills, _ = E.find_skills(jd)
-        role = None
+        fuzzy_match = E.resolve_role_profile_fuzzy(jd, db.jobs())
+        role = fuzzy_match["job"] if fuzzy_match["matched"] else None
+        role_resolution = fuzzy_match
         if not jskills:
-            role = E.resolve_role_profile(jd, db.jobs())
             if not role:
                 raise HTTPException(400, "No skills or supported role were recognized. Try a role such as 'backend developer' or paste a fuller job description.")
             jskills = set(role["skills"])
@@ -267,6 +269,8 @@ async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form
     portfolio_projects = E.get_portfolio_project_roadmaps(missing_skills[:6])
     official_docs = E.get_official_docs_and_certs(missing_skills[:6])
     salary_estimate = E.estimate_salary_range(target_job["title"] if target_job else "Software Engineer", years, skills)
+    skill_proficiencies = E.detect_skill_proficiencies(text, skills)
+    paced_roadmap = E.build_paced_roadmap(target_job["title"] if target_job else "Software Engineer", missing_skills, skill_proficiencies)
 
     user = get_current_user(request)
     user_id = user["id"] if user else None
@@ -277,6 +281,9 @@ async def analyze(request: Request, file: UploadFile = File(...), jd: str = Form
             "study_links": study_links, "predicted_roles": predicted_roles,
             "portfolio_projects": portfolio_projects, "official_docs": official_docs,
             "salary_estimate": salary_estimate,
+            "skill_proficiencies": skill_proficiencies,
+            "paced_roadmap": paced_roadmap,
+            "role_resolution": role_resolution,
             "valid_resume": True, "warnings": warnings}
 
 
@@ -352,6 +359,16 @@ async def predict_roles(resume_text: str = Form(...), top_n: int = Form(5)):
     years = E.years_of_experience(resume_text)
     n = max(1, min(20, top_n))
     return {"predicted_roles": E.predict_top_roles(resume_text, skills, years, db.jobs(), top_n=n)}
+
+
+@app.get("/api/roles/upcoming")
+def upcoming_roles():
+    return {"upcoming_roles": E.get_top_upcoming_roles(db.jobs())}
+
+
+@app.post("/api/roles/resolve")
+def resolve_role(role_query: str = Form(...)):
+    return E.resolve_role_profile_fuzzy(role_query, db.jobs())
 
 
 @app.post("/api/roles/open")

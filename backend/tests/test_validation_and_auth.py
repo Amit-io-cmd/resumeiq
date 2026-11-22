@@ -280,6 +280,49 @@ class AuthAndEndpointsTests(unittest.TestCase):
         remaining = [j for j in get_res2.json()["jobs"] if j["id"] == job_id]
         self.assertEqual(len(remaining), 0)
 
+    def test_roles_upcoming_endpoint(self):
+        res = client.get("/api/roles/upcoming")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("upcoming_roles", data)
+        self.assertGreaterEqual(len(data["upcoming_roles"]), 5)
+        titles = [r["title"] for r in data["upcoming_roles"]]
+        self.assertIn("Software Engineer", titles)
+
+    def test_roles_resolve_endpoint_fuzzy_matching(self):
+        # 1. Test "soft engineer" -> "Software Engineer"
+        res = client.post("/api/roles/resolve", data={"role_query": "soft engineer"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["matched"])
+        self.assertEqual(data["resolved_title"], "Software Engineer")
+        self.assertGreaterEqual(data["confidence"], 0.85)
+
+        # 2. Test "swe" abbreviation
+        res_swe = client.post("/api/roles/resolve", data={"role_query": "swe"})
+        self.assertEqual(res_swe.status_code, 200)
+        self.assertEqual(res_swe.json()["resolved_title"], "Software Engineer")
+
+    def test_analyze_includes_paced_roadmap_and_skill_proficiencies(self):
+        files = {"file": ("sample_resume.txt", io.BytesIO(self.sample_resume.encode("utf-8")), "text/plain")}
+        res = client.post("/api/analyze", files=files, data={"jd": "soft engineer", "top_n": 5})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("skill_proficiencies", data)
+        self.assertIn("paced_roadmap", data)
+        self.assertIn("role_resolution", data)
+
+        # Verify proficiencies
+        profs = data["skill_proficiencies"]
+        self.assertGreater(len(profs), 3)
+        self.assertTrue(any(p["level"] == "applied" for p in profs))
+
+        # Verify 3-phase roadmap
+        roadmap = data["paced_roadmap"]
+        self.assertIn("phases", roadmap)
+        self.assertEqual(len(roadmap["phases"]), 3)
+        self.assertIn("total_weeks", roadmap)
+
 
 if __name__ == "__main__":
     unittest.main()

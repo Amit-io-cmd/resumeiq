@@ -236,6 +236,85 @@ class NewFeaturesTests(unittest.TestCase):
         self.assertEqual(len(links), 2)
         self.assertTrue(all("url" in item and "title" in item and "channel" in item for item in links))
 
+    def test_fuzzy_role_resolution_soft_engineer(self):
+        jobs = db.jobs()
+        res = engine.resolve_role_profile_fuzzy("soft engineer", jobs)
+        self.assertTrue(res["matched"])
+        self.assertEqual(res["resolved_title"], "Software Engineer")
+        self.assertGreaterEqual(res["confidence"], 0.85)
+
+        # Standard resolution helper should also return the job object
+        resolved_job = engine.resolve_role_profile("soft engineer", jobs)
+        self.assertIsNotNone(resolved_job)
+        self.assertEqual(resolved_job["title"], "Software Engineer")
+
+    def test_fuzzy_role_resolution_abbreviations_and_typos(self):
+        jobs = db.jobs()
+        # Test 'software eng'
+        res1 = engine.resolve_role_profile_fuzzy("software eng", jobs)
+        self.assertTrue(res1["matched"])
+        self.assertEqual(res1["resolved_title"], "Software Engineer")
+
+        # Test acronym 'swe'
+        res2 = engine.resolve_role_profile_fuzzy("swe", jobs)
+        self.assertTrue(res2["matched"])
+        self.assertEqual(res2["resolved_title"], "Software Engineer")
+
+        # Test 'back end'
+        res3 = engine.resolve_role_profile_fuzzy("back end", jobs)
+        self.assertTrue(res3["matched"])
+        self.assertEqual(res3["resolved_title"], "Backend Engineer")
+
+    def test_skill_proficiencies_detection(self):
+        resume_text = (
+            "TECHNICAL SKILLS: Python, Docker, Kubernetes, SQL, Git, Redis\n"
+            "EXPERIENCE\n"
+            "- Architected microservices in Python using FastAPI, reducing latency by 35%.\n"
+            "- Configured Docker containers and automated CI/CD deployment pipelines."
+        )
+        skills = {"Python", "Docker", "Kubernetes", "SQL", "Git", "Redis"}
+        proficiencies = engine.detect_skill_proficiencies(resume_text, skills)
+        self.assertEqual(len(proficiencies), len(skills))
+
+        # Python and Docker appear in active action bullets -> Applied
+        p_dict = {p["skill"]: p for p in proficiencies}
+        self.assertEqual(p_dict["Python"]["level"], "applied")
+        self.assertEqual(p_dict["Docker"]["level"], "applied")
+        self.assertIn("latency", p_dict["Python"]["evidence"].lower())
+
+        # Redis is only in skills line -> Foundational
+        self.assertEqual(p_dict["Redis"]["level"], "foundational")
+
+    def test_paced_roadmap_generation(self):
+        missing_skills = ["Data Structures", "PostgreSQL", "Docker", "Kubernetes", "AWS"]
+        roadmap = engine.build_paced_roadmap("Software Engineer", missing_skills)
+        self.assertEqual(roadmap["target_role"], "Software Engineer")
+        self.assertEqual(roadmap["total_skills"], 5)
+        self.assertIn("weeks", roadmap["total_weeks"].lower())
+        self.assertIn("hrs", roadmap["total_hours"].lower())
+
+        # Verify 3 pedagogical phases
+        phases = roadmap["phases"]
+        self.assertEqual(len(phases), 3)
+        self.assertEqual(phases[0]["phase_index"], 1)
+        self.assertEqual(phases[1]["phase_index"], 2)
+        self.assertEqual(phases[2]["phase_index"], 3)
+
+        # Check steps in phase 3 (Docker, Kubernetes, AWS)
+        p3_skills = phases[2]["skills"]
+        self.assertTrue(any("docker" in s.lower() or "aws" in s.lower() for s in p3_skills))
+        self.assertGreater(len(phases[2]["steps"]), 0)
+        self.assertIn("youtube_search_url", phases[2]["steps"][0])
+
+    def test_top_upcoming_roles(self):
+        upcoming = engine.get_top_upcoming_roles(db.jobs())
+        self.assertGreaterEqual(len(upcoming), 5)
+        titles = [r["title"] for r in upcoming]
+        self.assertIn("Software Engineer", titles)
+        self.assertIn("Backend Engineer", titles)
+        self.assertIn("Full Stack Developer", titles)
+        self.assertTrue(all("salary_range" in r and "demand_tag" in r for r in upcoming))
+
 
 if __name__ == "__main__":
     unittest.main()
