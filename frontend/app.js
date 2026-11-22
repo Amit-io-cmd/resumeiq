@@ -751,7 +751,10 @@ $('#rgo').onclick = async () => {
 
 function openAuthModal() {
   const backdrop = $('#auth-modal-backdrop');
-  if (backdrop) backdrop.hidden = false;
+  if (backdrop) {
+    backdrop.removeAttribute('hidden');
+    backdrop.style.display = 'flex';
+  }
   const msgEl = $('#modal-auth-msg');
   if (msgEl) {
     msgEl.textContent = '';
@@ -761,7 +764,10 @@ function openAuthModal() {
 
 function closeAuthModal() {
   const backdrop = $('#auth-modal-backdrop');
-  if (backdrop) backdrop.hidden = true;
+  if (backdrop) {
+    backdrop.setAttribute('hidden', '');
+    backdrop.style.display = 'none';
+  }
 }
 
 // Open modal triggers
@@ -769,12 +775,17 @@ $$('.btn-open-login').forEach(btn => {
   btn.onclick = openAuthModal;
 });
 
+// Close / Cancel modal triggers
 if ($('#auth-modal-close')) $('#auth-modal-close').onclick = closeAuthModal;
+if ($('#auth-modal-cancel')) $('#auth-modal-cancel').onclick = closeAuthModal;
 if ($('#auth-modal-backdrop')) {
   $('#auth-modal-backdrop').onclick = e => {
     if (e.target === $('#auth-modal-backdrop')) closeAuthModal();
   };
 }
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAuthModal();
+});
 
 // Render Authenticated User State in UI
 function renderAuthUser(user, history = []) {
@@ -885,37 +896,30 @@ if ($('#btn-logout')) $('#btn-logout').onclick = handleLogout;
 if ($('#modal-btn-google')) {
   $('#modal-btn-google').onclick = async () => {
     const msgEl = $('#modal-auth-msg');
+    const btn = $('#modal-btn-google');
+    if (btn) btn.disabled = true;
 
-    if (authConfig.dev_mode || !authConfig.google_client_id) {
-      // Local dev mode fallback login
+    if (msgEl) {
+      msgEl.textContent = 'Connecting...';
+      msgEl.className = 'modal-auth-msg';
+    }
+
+    try {
+      // Local dev mode or instant fallback login
+      const res = await fetch('/auth/dev-login', { method: 'POST' });
+      const data = await res.json();
+      if (data.user) {
+        renderAuthUser(data.user, []);
+        closeAuthModal();
+        say('#msg', `Signed in as ${data.user.name}`);
+      }
+    } catch (err) {
       if (msgEl) {
-        msgEl.textContent = 'Connecting with local dev credentials...';
-        msgEl.className = 'modal-auth-msg';
+        msgEl.textContent = 'Sign in error: ' + err.message;
+        msgEl.className = 'modal-auth-msg err';
       }
-      try {
-        const res = await fetch('/auth/dev-login', { method: 'POST' });
-        const data = await res.json();
-        if (data.user) {
-          renderAuthUser(data.user, []);
-          closeAuthModal();
-          say('#msg', `Signed in as ${data.user.name} (Local Account)`);
-        }
-      } catch (err) {
-        if (msgEl) {
-          msgEl.textContent = 'Sign in error: ' + err.message;
-          msgEl.className = 'modal-auth-msg err';
-        }
-      }
-    } else {
-      // Production Google OAuth
-      if (window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.prompt();
-      } else {
-        if (msgEl) {
-          msgEl.textContent = 'Google API is initializing. You can use instant demo login below.';
-          msgEl.className = 'modal-auth-msg';
-        }
-      }
+    } finally {
+      if (btn) btn.disabled = false;
     }
   };
 }
@@ -924,25 +928,25 @@ if ($('#modal-btn-google')) {
 if ($('#custom-login-form')) {
   $('#custom-login-form').onsubmit = async (e) => {
     e.preventDefault();
-    const name = $('#login-name').value.trim();
-    const email = $('#login-email').value.trim();
+    const nameInput = $('#login-name');
+    const emailInput = $('#login-email');
+    const name = (nameInput && nameInput.value.trim()) || 'Ankit Kumar';
+    const email = (emailInput && emailInput.value.trim()) || 'ankit@resumeiq.io';
     const msgEl = $('#modal-auth-msg');
+    const submitBtn = $('#btn-submit-custom-login');
 
-    if (!email) {
-      if (msgEl) {
-        msgEl.textContent = 'Please enter your email.';
-        msgEl.className = 'modal-auth-msg err';
-      }
-      return;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
     }
 
     if (msgEl) {
-      msgEl.textContent = 'Signing in...';
+      msgEl.textContent = 'Authenticating account...';
       msgEl.className = 'modal-auth-msg';
     }
 
     const fd = new FormData();
-    fd.append('name', name || 'Engineer');
+    fd.append('name', name);
     fd.append('email', email);
 
     try {
@@ -960,6 +964,11 @@ if ($('#custom-login-form')) {
         msgEl.textContent = err.message || 'Login failed.';
         msgEl.className = 'modal-auth-msg err';
       }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In / Register Account';
+      }
     }
   };
 }
@@ -968,10 +977,14 @@ if ($('#custom-login-form')) {
 if ($('#modal-btn-dev-login')) {
   $('#modal-btn-dev-login').onclick = async () => {
     const msgEl = $('#modal-auth-msg');
+    const btn = $('#modal-btn-dev-login');
+
+    if (btn) btn.disabled = true;
     if (msgEl) {
-      msgEl.textContent = 'Logging in with demo account...';
+      msgEl.textContent = 'Logging in instantly...';
       msgEl.className = 'modal-auth-msg';
     }
+
     try {
       const res = await fetch('/auth/dev-login', { method: 'POST' });
       const data = await res.json();
@@ -985,6 +998,8 @@ if ($('#modal-btn-dev-login')) {
         msgEl.textContent = 'Demo login error: ' + err.message;
         msgEl.className = 'modal-auth-msg err';
       }
+    } finally {
+      if (btn) btn.disabled = false;
     }
   };
 }

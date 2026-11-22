@@ -1580,6 +1580,14 @@ th {
   animation: fadeIn 0.2s ease;
 }
 
+.modal-backdrop[hidden],
+.sidebar-backdrop[hidden],
+.user-drawer[hidden],
+.drawer-backdrop[hidden],
+[hidden] {
+  display: none !important;
+}
+
 .auth-modal {
   width: 100%;
   max-width: 440px;
