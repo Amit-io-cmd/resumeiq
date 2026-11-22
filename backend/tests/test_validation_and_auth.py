@@ -43,13 +43,37 @@ class ResumeValidationTests(unittest.TestCase):
 
     def test_non_resume_content_without_structural_markers_rejected(self):
         story = (
-            "The quick brown fox jumps over the lazy dog repeatedly on a sunny afternoon in the forest. "
-            "Birds are singing happily in the trees while the river gently flows down the rocky valley. "
-            "There were several colorful butterflies flying near the fragrant wildflowers on the hill."
+            "Once upon a time in 2024, there was an engineer with great leadership skills and experience. "
+            "He loved nature and walked near the trees every day in the forest with his friends and family."
         )
         is_valid, err_msg, warnings, details = E.validate_resume_text(story)
         self.assertFalse(is_valid)
-        self.assertIn("does not appear to be a technical resume", err_msg)
+        self.assertTrue("not appear to be a resume" in err_msg.lower() or "detected" in err_msg.lower() or "story" in err_msg.lower())
+
+    def test_non_resume_document_types_rejected(self):
+        recipe = (
+            "Chocolate Chip Cookies Recipe 2024. Ingredients: 2 cups flour, 1 cup butter, chocolate chips. "
+            "Experience the best cookies in town with our management approved recipe. Contact chef@baking.com."
+        )
+        is_valid, err_msg, warnings, details = E.validate_resume_text(recipe)
+        self.assertFalse(is_valid)
+        self.assertIn("recipe", err_msg.lower())
+
+        terms = (
+            "Terms of Service. Last updated 2024. By using our service you agree to these terms and conditions. "
+            "Management reserves all rights. For communication contact support@service.com."
+        )
+        is_valid, err_msg, warnings, details = E.validate_resume_text(terms)
+        self.assertFalse(is_valid)
+        self.assertIn("legal agreement", err_msg.lower())
+
+        invoice = (
+            "Invoice #1024. Date: 2024-01-15. Billed to: Acme Corp. Item: Software consulting services. "
+            "Payment due in 30 days. Contact accounting@vendor.com for billing support."
+        )
+        is_valid, err_msg, warnings, details = E.validate_resume_text(invoice)
+        self.assertFalse(is_valid)
+        self.assertIn("invoice", err_msg.lower())
 
     def test_partial_resume_passes_with_warnings(self):
         partial = (
@@ -124,6 +148,22 @@ class AuthAndEndpointsTests(unittest.TestCase):
         data = res.json()
         self.assertIn("predicted_roles", data)
         self.assertLessEqual(len(data["predicted_roles"]), 10)
+
+    def test_validate_endpoint_detects_non_resume(self):
+        non_resume_content = b"Recipe for pasta: 2 cups flour, 1 egg. Boil water and cook for 10 minutes. Enjoy with tomato sauce."
+        files = {"file": ("recipe.txt", io.BytesIO(non_resume_content), "text/plain")}
+        res = client.post("/api/validate", files=files)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertFalse(data["valid_resume"])
+        self.assertIn("not", data["message"].lower())
+
+    def test_validate_endpoint_accepts_valid_resume(self):
+        files = {"file": ("sample_resume.txt", io.BytesIO(self.sample_resume.encode("utf-8")), "text/plain")}
+        res = client.post("/api/validate", files=files)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["valid_resume"])
 
     def test_study_links_api(self):
         res = client.post("/api/skills/study", data={"skills": "Docker, Kubernetes, Redis"})

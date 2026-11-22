@@ -76,6 +76,26 @@ async def read(file: UploadFile):
     return text, warnings
 
 
+@app.post("/api/validate")
+async def validate_upload(file: UploadFile = File(...)):
+    filename = file.filename or ""
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return {"valid_resume": False, "message": "File exceeds 10 MB limit. Please upload a smaller file.", "warnings": []}
+    try:
+        text = E.extract_text(filename, data).strip()
+    except E.ResumeFileError as exc:
+        return {"valid_resume": False, "message": str(exc), "warnings": []}
+
+    is_valid, err_msg, warnings, details = E.validate_resume_text(text)
+    return {
+        "valid_resume": is_valid,
+        "message": err_msg or "Valid resume format.",
+        "warnings": warnings,
+        "details": details
+    }
+
+
 def score_job(text, skills, years, job):
     m = E.match(text, skills, years, job["title"] + ". " + job["description"], job["skills"], job.get("min_years", 0))
     return {"job_id": job["id"], "title": job["title"], "company": job["company"], "location": job["location"],

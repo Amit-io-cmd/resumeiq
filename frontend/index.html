@@ -164,7 +164,7 @@
       <span id="msg" class="status-indicator" role="status"></span>
     </div>
 
-    <!-- Validation Error Card (Triggered on invalid/abrupt text) -->
+    <!-- Validation Error Card (Triggered on invalid/non-resume file) -->
     <div id="validation-error-card" class="glass-card validation-error-banner" hidden>
       <div class="error-banner-icon">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -174,8 +174,8 @@
         </svg>
       </div>
       <div class="error-banner-body">
-        <strong class="error-banner-title">Invalid Resume Input</strong>
-        <p id="validation-error-text" class="error-banner-msg">The document does not appear to contain a structured resume.</p>
+        <strong class="error-banner-title" id="validation-error-title">Not a Resume File</strong>
+        <p id="validation-error-text" class="error-banner-msg">This file does not appear to be a resume. Please upload a suitable resume file (PDF, DOCX, or TXT).</p>
       </div>
       <button class="btn btn-sm btn-ghost error-banner-btn" id="btn-load-sample-from-error" type="button">Load Sample Resume</button>
     </div>

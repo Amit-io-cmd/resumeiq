@@ -104,6 +104,21 @@ def extract_text(name: str, data: bytes) -> str:
             return data.decode("latin-1")
 
 
+RESUME_SECTION_HEADERS = re.compile(
+    r"(?m)^\s*(?:[#*•-]\s*)?(?:education|academics?|work\s+experience|professional\s+experience|experience|employment(?:\s+history)?|projects?|technical\s+skills|key\s+skills|skills(?:\s+&+?\s+tools)?|professional\s+summary|summary|profile|career\s+objective|certifications?|coursework|publications?)\b\s*[:\n-]",
+    re.IGNORECASE
+)
+
+NON_RESUME_DOC_PATTERNS = [
+    (re.compile(r"\b(?:ingredients|recipe|tablespoon|teaspoon|preheat|bake for|cups flour|servings:)\b", re.I), "recipe or culinary document"),
+    (re.compile(r"\b(?:terms of service|privacy policy|terms and conditions|all rights reserved|user agreement|terms of use)\b", re.I), "legal agreement or terms of service"),
+    (re.compile(r"\b(?:invoice\s*#?|billed to|payment due|amount due|purchase order|remit payment)\b", re.I), "invoice or billing document"),
+    (re.compile(r"\b(?:abstract\s*:|methodology\s*:|literature review|references\s*:|et al\.|proceedings of the)\b", re.I), "academic research paper"),
+    (re.compile(r"\b(?:we are looking for|responsibilities\s*:|requirements\s*:|role overview|what you will do|who you are|about the role|equal opportunity employer|apply now at)\b", re.I), "job description or job vacancy"),
+    (re.compile(r"\b(?:once upon a time|chapter \d+|fairy tale|in the forest)\b", re.I), "narrative story or fictional text"),
+]
+
+
 def validate_resume_text(text: str) -> Tuple[bool, str, List[str], Dict[str, Any]]:
     """
     Validates that the provided text resembles a structured technical resume.
@@ -114,20 +129,34 @@ def validate_resume_text(text: str) -> Tuple[bool, str, List[str], Dict[str, Any
     word_count = len(words)
     char_count = len(stripped)
 
-    # 1. Minimum length guard
+    if not stripped:
+        return False, (
+            "The uploaded file is empty. Please upload a suitable resume file (PDF, DOCX, or TXT)."
+        ), ["File is empty."], {"reason": "empty"}
+
+    # 1. Obvious non-resume document detector (recipes, invoices, terms, papers, JDs, stories)
+    for pattern, doc_label in NON_RESUME_DOC_PATTERNS:
+        if pattern.search(stripped):
+            return False, (
+                f"This file does not appear to be a resume. It appears to be a {doc_label}. "
+                "Please upload a suitable resume file (PDF, DOCX, or TXT) containing your work experience, "
+                "skills, and education."
+            ), [f"Detected {doc_label}."], {"reason": "non_resume_type", "detected_type": doc_label}
+
+    # 2. Minimum length guard
     if char_count < 140 or word_count < 28:
         return False, (
-            f"The provided text is too brief to analyze as a resume ({word_count} words found). "
-            "A standard technical resume should contain at least 35-50 words including experience, "
-            "skills, projects, or education. Click 'Use Sample Resume' for an example."
+            f"This file does not appear to be a resume (too brief, {word_count} words found). "
+            "Please upload a suitable resume file (PDF, DOCX, or TXT) containing your work experience, "
+            "technical skills, or education. You can also click 'Use Sample Resume' for an example."
         ), ["Document is too short to extract career signals."], {"words": word_count, "reason": "too_short"}
 
-    # 2. Gibberish / keyboard smash / non-readable content detection
+    # 3. Gibberish / keyboard smash / non-readable content detection
     tokens = re.findall(r"\b[a-zA-Z]{2,}\b", stripped.lower())
     if not tokens or len(tokens) < 14:
         return False, (
             "The document does not contain enough recognizable words to be parsed as a resume. "
-            "Please upload a text-based PDF, DOCX, or TXT file."
+            "Please upload a text-based PDF, DOCX, or TXT resume."
         ), ["Document lacks readable text."], {"reason": "low_word_count"}
 
     vowels = set("aeiouy")
@@ -135,43 +164,51 @@ def validate_resume_text(text: str) -> Tuple[bool, str, List[str], Dict[str, Any
     if len(tokens) >= 10 and (vowelless / len(tokens)) > 0.35:
         return False, (
             "The document contains random or unstructured character sequences without recognizable words. "
-            "Please verify your file content or try the sample resume."
+            "Please verify your file content and upload a suitable resume."
         ), ["Random character sequence or keyboard smash detected."], {"reason": "gibberish"}
 
     avg_len = sum(len(w) for w in tokens) / len(tokens)
     if avg_len > 18:
         return False, (
             "The document contains unusually long continuous character sequences. "
-            "Ensure the resume has normal word spacing."
+            "Ensure the resume has normal word spacing and upload a suitable resume file."
         ), ["Tokens exceed normal word length."], {"reason": "unusually_long_tokens"}
 
-    # 3. Structural resume signals
+    # 4. Structural resume signals
     skills, _ = find_skills(stripped)
     has_skills = len(skills) > 0
-    has_section = bool(re.search(
-        r"\b(education|academics?|experience|work\s+history|employment|projects?|technical\s+skills|skills?|summary|profile|objective|certifications?|coursework)\b",
-        stripped, re.I
-    ))
+    has_section = bool(RESUME_SECTION_HEADERS.search(stripped))
     has_contact = bool(
         re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", stripped) or
         re.search(r"\+?\d[\d\s-]{8,}", stripped) or
         re.search(r"github\.com|linkedin\.com|portfolio|\.dev|\.io", stripped, re.I)
     )
-    has_dates = bool(re.search(r"\b(?:19|20)\d{2}\b|\bpresent\b|\bcurrent\b", stripped, re.I))
+    has_dates = bool(
+        re.search(r"\b(?:19|20)\d{2}\s*(?:-|–|to)\s*(?:(?:19|20)\d{2}|present|current)\b", stripped, re.I) or
+        re.search(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(?:19|20)\d{2}\b", stripped, re.I) or
+        re.search(r"\b(?:19|20)\d{2}\b", stripped)
+    )
+    has_bullets = bool(re.search(
+        r"(?m)^\s*[-*•]\s*(?:built|developed|managed|designed|led|engineered|created|implemented|deployed|automated|maintained|improved|spearheaded|worked|responsible|collaborated|conducted|resolved)\b",
+        stripped, re.I
+    ))
 
-    structural_signals = sum([has_skills, has_section, has_contact, has_dates])
     # A valid resume must have:
-    # EITHER at least 2 distinct technical skills and at least 1 other signal (section, contact, or dates),
-    # OR at least a recognizable section header (e.g. Experience/Education) and at least 1 other signal.
-    is_resume_structure = (has_section and structural_signals >= 2) or (len(skills) >= 2 and structural_signals >= 2) or (has_section and len(skills) >= 1)
-    if not is_resume_structure:
+    # Standalone section headers OR experience bullet points, AND at least 2 structural indicators
+    structural_signals = sum([has_skills, has_section, has_contact, has_dates, has_bullets])
+    if not has_section and not has_bullets:
         return False, (
-            "The uploaded content does not appear to be a technical resume. "
-            "It is missing recognizable resume sections (such as Experience or Education), "
-            "technical skills, or contact info. You can click 'Use Sample Resume' for a complete example."
-        ), ["Missing standard resume sections and recognized technical skills."], {"structural_signals": structural_signals, "reason": "missing_resume_signals"}
+            "This file does not appear to be a resume. It does not contain recognizable resume section headers "
+            "(such as Experience, Education, or Skills) or experience bullet points. Please upload a suitable resume file."
+        ), ["Missing standard resume sections or bullet points."], {"structural_signals": structural_signals, "reason": "no_headers_or_bullets"}
 
-    # 4. Compile helpful warnings for partial / weak resumes
+    if structural_signals < 2:
+        return False, (
+            "This file does not appear to be a resume. It is missing key resume credentials such as contact details, "
+            "employment dates, or technical skills. Please upload a suitable resume file."
+        ), ["Missing standard resume credentials."], {"structural_signals": structural_signals, "reason": "insufficient_signals"}
+
+    # 5. Compile helpful warnings for partial / weak resumes
     warnings = []
     if word_count < 80:
         warnings.append(f"Brief resume ({word_count} words). Adding quantified project bullets will improve ATS matching.")
@@ -187,7 +224,8 @@ def validate_resume_text(text: str) -> Tuple[bool, str, List[str], Dict[str, Any
         "skills_found": len(skills),
         "has_section": has_section,
         "has_contact": has_contact,
-        "has_dates": has_dates
+        "has_dates": has_dates,
+        "has_bullets": has_bullets
     }
 
 

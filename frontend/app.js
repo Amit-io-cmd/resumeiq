@@ -18,6 +18,32 @@ function getDefaultAvatar(name) {
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="36" height="36" rx="18" fill="%232563eb"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600">${initial}</text></svg>`;
 }
 
+// Validation Banner Helpers
+function showValidationError(msg, title = 'Not a Resume File') {
+  const banner = $('#validation-error-card');
+  const titleEl = $('#validation-error-title');
+  const textEl = $('#validation-error-text');
+  if (titleEl) titleEl.textContent = title;
+  if (textEl) textEl.textContent = msg;
+  if (banner) banner.hidden = false;
+
+  const drop = $('#drop');
+  if (drop) {
+    drop.classList.add('drop-error');
+    drop.classList.remove('drop-success');
+  }
+}
+
+function hideValidationError() {
+  const banner = $('#validation-error-card');
+  if (banner) banner.hidden = true;
+
+  const drop = $('#drop');
+  if (drop) {
+    drop.classList.remove('drop-error');
+  }
+}
+
 // Stale State Prevention: Reset all previous analysis results immediately
 function resetPreviousResults() {
   analysisData = null;
@@ -27,7 +53,13 @@ function resetPreviousResults() {
   // Hide analysis output, warnings, and validation error
   if ($('#out')) $('#out').hidden = true;
   if ($('#resume-warnings-card')) $('#resume-warnings-card').hidden = true;
-  if ($('#validation-error-card')) $('#validation-error-card').hidden = true;
+  hideValidationError();
+
+  const drop = $('#drop');
+  if (drop) {
+    drop.classList.remove('drop-error');
+    drop.classList.remove('drop-success');
+  }
 
   // Reset score and radial progress
   if ($('#score')) $('#score').textContent = '--';
@@ -129,12 +161,59 @@ $('#btn-top-10').onclick = () => {
   loadPredictedRoles(10);
 };
 
-// File Upload Handling
-const setFile = file => {
+// File Upload Handling with Immediate Resume Detection
+const setFile = async file => {
   resetPreviousResults();
-  currentFile = file;
+  if (!file) return;
+
+  const ext = (file.name.slice(file.name.lastIndexOf('.')) || '').toLowerCase();
+  const allowed = ['.pdf', '.docx', '.txt'];
+
+  // Check file extension first
+  if (!allowed.includes(ext)) {
+    currentFile = null;
+    $('#fname').textContent = `${file.name} (Not a resume)`;
+    say('#msg', `Unsupported file type (${ext || 'unknown'}). Please upload a suitable resume file.`, true);
+    showValidationError(
+      `The file "${file.name}" is not a supported resume format. Please upload a suitable resume file in PDF, DOCX, or TXT format.`,
+      'Unsupported File Type'
+    );
+    $('#go').disabled = true;
+    return;
+  }
+
+  // File extension is valid: scan file content immediately to detect if it's a resume
   $('#fname').textContent = file.name;
-  say('#msg', '');
+  say('#msg', 'Scanning uploaded file structure...');
+  hideValidationError();
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/validate', { method: 'POST', body: fd });
+    const check = await res.json();
+
+    if (!check.valid_resume) {
+      currentFile = null;
+      $('#fname').textContent = `${file.name} (Not a resume)`;
+      const errorMsg = check.message || "This file does not appear to be a resume. Please upload a suitable resume file.";
+      say('#msg', 'This file is not a resume. Please upload a suitable file.', true);
+      showValidationError(errorMsg, 'Not a Resume File');
+      $('#go').disabled = true;
+      return;
+    }
+
+    // Valid resume verified!
+    currentFile = file;
+    hideValidationError();
+    say('#msg', 'Resume verified. Click "Run Diagnostic" to start.', false);
+    $('#go').disabled = false;
+  } catch (err) {
+    // Fallback if pre-validation call fails: still allow running diagnostic
+    currentFile = file;
+    say('#msg', 'Resume file ready for diagnostic.', false);
+    $('#go').disabled = false;
+  }
 };
 
 $('#file').onchange = e => e.target.files[0] && setFile(e.target.files[0]);
@@ -158,6 +237,7 @@ $('#sample').onclick = async () => {
     const { text } = await res.json();
     currentFile = new File([text], 'sample_resume.txt', { type: 'text/plain' });
     $('#fname').textContent = 'sample_resume.txt';
+    hideValidationError();
     $('#jd').value = 'Backend Engineer with Python, FastAPI, Docker, and SQL experience.';
     runAnalysis();
   } catch (err) {
@@ -207,7 +287,11 @@ function say(selector, text, isErr = false) {
 // Main Diagnostic Execution
 async function runAnalysis() {
   if (!currentFile) {
-    return say('#msg', 'Please select or drop a resume file first.', true);
+    showValidationError(
+      'No resume file selected. Please upload a suitable resume file (PDF, DOCX, or TXT) before running the diagnostic.',
+      'Resume Required'
+    );
+    return say('#msg', 'Please select or upload a resume file first.', true);
   }
 
   // Clear any existing results immediately before starting new run
@@ -255,8 +339,7 @@ async function runAnalysis() {
 
     // Display validation error banner with structured guidance
     const validationMsg = (err.payload && err.payload.message) || err.message;
-    $('#validation-error-text').textContent = validationMsg;
-    $('#validation-error-card').hidden = false;
+    showValidationError(validationMsg, 'Not a Resume File');
   } finally {
     $('#go').disabled = false;
   }

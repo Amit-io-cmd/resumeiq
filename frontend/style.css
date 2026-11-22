@@ -483,6 +483,16 @@ html, body {
   background: var(--brand-bg);
 }
 
+.dropzone.drop-error {
+  border-color: var(--fail) !important;
+  background: rgba(220, 38, 38, 0.04) !important;
+}
+
+.dropzone.drop-success {
+  border-color: var(--pass) !important;
+  background: rgba(16, 185, 129, 0.04) !important;
+}
+
 .drop-icon {
   color: var(--ink-muted);
   margin-bottom: 8px;
