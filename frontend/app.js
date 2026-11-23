@@ -1,4 +1,18 @@
 // ResumeIQ: Engineering Diagnostic Workbench Logic
+// Seamless API routing (supports both unified & separate frontend/backend deployments)
+const API_BASE = (window.API_BASE_URL || '').replace(/\/+$/, '');
+if (API_BASE) {
+  const _fetch = window.fetch;
+  window.fetch = (input, init = {}) => {
+    if (typeof input === 'string' && input.startsWith('/') && !input.startsWith('//')) {
+      input = `${API_BASE}${input}`;
+    }
+    init = init || {};
+    init.credentials = init.credentials || 'include';
+    return _fetch(input, init);
+  };
+}
+
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const esc = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -12,10 +26,10 @@ let currentMode = 'target'; // 'target' or 'predict'
 let authConfig = { google_client_id: '', dev_mode: true };
 let currentUser = null;
 
-// Default inline SVG avatar generator for users without avatar URLs
+// Default inline SVG avatar generator for users without avatar URLs (Electric Coral & Ink Navy)
 function getDefaultAvatar(name) {
   const initial = (name || 'E').charAt(0).toUpperCase();
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="36" height="36" rx="18" fill="%232563eb"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="36" height="36" rx="18" fill="%23FF665A"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="%23F8F7F3" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="700">${initial}</text></svg>`;
 }
 
 // Validation Banner Helpers
@@ -1670,14 +1684,51 @@ async function initAuth() {
   }
 }
 
+// Theme Management (Light / Dark)
+function initTheme() {
+  const savedTheme = localStorage.getItem('resumeiq-theme');
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const initialTheme = savedTheme || (systemDark ? 'dark' : 'light');
+  applyTheme(initialTheme);
+
+  const toggleBtns = document.querySelectorAll('.theme-toggle-btn');
+  toggleBtns.forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      toggleTheme();
+    };
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('resumeiq-theme', theme);
+
+  const labels = document.querySelectorAll('.theme-toggle-label');
+  labels.forEach(lbl => {
+    lbl.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  });
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+}
+
 // Initialize on Load
-document.addEventListener('DOMContentLoaded', () => {
+let isInitialized = false;
+function initializeApp() {
+  if (isInitialized) return;
+  isInitialized = true;
+  initTheme();
   updatePhaseStates();
   switchPhase('diagnostic');
   initAuth();
-});
-if (document.readyState !== 'loading') {
-  updatePhaseStates();
-  switchPhase('diagnostic');
-  initAuth();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
 }

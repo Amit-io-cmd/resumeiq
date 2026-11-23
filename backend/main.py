@@ -8,11 +8,19 @@ import hashlib
 import urllib.request
 import urllib.parse
 from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import engine as E, db
 
 app = FastAPI(title="ResumeIQ")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 db.init()
 logger = logging.getLogger(__name__)
 
@@ -355,7 +363,7 @@ async def predict_roles(resume_text: str = Form(...), top_n: int = Form(5)):
 
 
 @app.post("/api/roles/open")
-async def open_roles(role_query: str = Form(...), resume_text: str = Form("")):
+async def open_roles(role_query: str = Form("Software Engineer"), resume_text: str = Form("")):
     skills, _ = E.find_skills(resume_text) if resume_text else (set(), [])
     years = E.years_of_experience(resume_text) if resume_text else 0.0
     roles = E.fetch_matching_open_roles(role_query, resume_text, skills, years, limit=10)
