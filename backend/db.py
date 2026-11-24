@@ -1,4 +1,6 @@
+from __future__ import annotations
 import sqlite3, json, pathlib, time
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, timezone
 import engine
 ROOT = pathlib.Path(__file__).resolve().parent.parent

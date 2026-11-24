@@ -1,12 +1,36 @@
-from typing import List, Optional
+from __future__ import annotations
+from typing import List, Optional, Dict, Any, Union
 import logging
 import json
 import os
+import sys
+import pathlib
 import time
 import hmac
 import hashlib
 import urllib.request
 import urllib.parse
+
+# Ensure backend directory is in sys.path
+BACKEND_DIR = pathlib.Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# Load .env file safely without external dependencies
+for env_candidate in [
+    pathlib.Path(__file__).resolve().parent.parent / ".env",
+    pathlib.Path(__file__).resolve().parent / ".env"
+]:
+    if env_candidate.exists():
+        try:
+            for env_line in env_candidate.read_text(encoding="utf-8").splitlines():
+                env_line = env_line.strip()
+                if env_line and not env_line.startswith("#") and "=" in env_line:
+                    k, v = env_line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+        except Exception:
+            pass
+
 from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse

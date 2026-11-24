@@ -1,6 +1,12 @@
 """NLP + ML engine: parsing, skill extraction, hybrid matching, ATS scoring, and interview prep."""
-import io, re, os, pathlib, logging, datetime, urllib.parse
-from typing import List, Dict, Tuple, Set, Any
+from __future__ import annotations
+import io, re, os, sys, pathlib, logging, datetime, urllib.parse
+from typing import List, Dict, Tuple, Set, Any, Optional, Union
+
+# Ensure backend directory is in sys.path so 'import db' and local modules resolve reliably
+BACKEND_DIR = pathlib.Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
 W_SEM, W_SKILL, W_EXP = 0.40, 0.40, 0.20   # hybrid score weights
@@ -9,6 +15,7 @@ logger = logging.getLogger(__name__)
 # ---------- skills taxonomy (data/skills.txt: canonical|alias|alias) ----------
 SKILLS = {}
 SKILL_CATEGORY = {}
+PATTERNS = {}
 
 DEFAULT_CATEGORIES = {
     'Languages': {'Python', 'JavaScript', 'TypeScript', 'Java', 'C++', 'C#', 'Go', 'Rust', 'Ruby', 'PHP', 'Swift', 'Kotlin', 'R', 'Scala', 'Dart', 'SQL', 'Shell'},
@@ -270,7 +277,7 @@ def compare_job_keywords(job_text: str, resume_text: str, limit: int = 30) -> Li
         )
         scores = vectorizer.fit_transform([job_text]).toarray()[0]
         terms = vectorizer.get_feature_names_out()
-    except ValueError:
+    except Exception:
         terms, scores = [], []
 
     resume_terms = " ".join(re.findall(r"[a-z0-9+#.-]+", resume_text.lower()))
@@ -458,9 +465,12 @@ def semantic(a: str, b: str):
         ]
         cosine = sum(best_matches) / len(best_matches)
         return max(0.0, min(1.0, (cosine - 0.15) / 0.55)), "MiniLM Neural Embeddings"
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    m = TfidfVectorizer(stop_words="english", ngram_range=(1, 2)).fit_transform([a, b])
-    return min(1.0, float((m[0] @ m[1].T).toarray()[0, 0]) * 2.5), "TF-IDF N-Gram Fallback"
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        m = TfidfVectorizer(stop_words="english", ngram_range=(1, 2)).fit_transform([a, b])
+        return min(1.0, float((m[0] @ m[1].T).toarray()[0, 0]) * 2.5), "TF-IDF N-Gram Fallback"
+    except Exception:
+        return _pure_python_tfidf_similarity(a, b), "Pure-Python Cosine Fallback"
 
 def match(resume_text, resume_skills, resume_years, job_text, job_skills, min_years=0, weights=None):
     sem, method = semantic(resume_text, job_text)
@@ -946,7 +956,10 @@ def compute_text_similarity(doc_a: str, doc_b: str) -> float:
 
 # ---------- YouTube Study Links Resolution ----------
 def get_study_links_for_skills(missing_skills: List[str]) -> List[Dict[str, Any]]:
-    import db
+    try:
+        import db
+    except ImportError:
+        from backend import db
     import urllib.request
     import urllib.parse
     import json
@@ -1095,7 +1108,10 @@ def predict_top_roles(resume_text: str, resume_skills: Set[str], resume_years: f
 
 # ---------- Matching Open Roles (Free APIs + Cache + Fallback) ----------
 def fetch_matching_open_roles(role_query: str, resume_text: str, resume_skills: Set[str], resume_years: float, limit: int = 10) -> List[Dict[str, Any]]:
-    import db
+    try:
+        import db
+    except ImportError:
+        from backend import db
     import urllib.request
     import urllib.parse
     import json
